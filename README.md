@@ -1,31 +1,69 @@
-# Boilerplate for Node-Express with sequelize ORM
+# Sistema OSS Saúde Americana
 
-A boilerplate for any enterprise rest api or service with Node.js, Express and Sequelize ORM for mysql, postgresql or others.
+API REST para acompanhamento de contratos de gestão em saúde pública - SMS Americana/SP.
+Baseado em Node.js + Express + Sequelize + MySQL. Conformidade LGPD e TCESP.
 
-By running this project you will get a production ready environment with all necessary supports for validation, unit testing, socket, redis and many more.
-
-## Manual Installation
-
-Clone the repo:
+## Setup Rápido
 
 ```bash
-git clone https://github.com/kazi-naimul/node-express-mysql-boilerplate
-cd node-express-mysql-boilerplate
-```
+# 1. Instalar dependências
+npm install
+npm --prefix frontend install
 
-Install the dependencies:
-
-```bash
-yarn install
-```
-
-Set the environment variables:
-
-```bash
+# 2. Configurar variáveis de ambiente
 cp .env.example .env
+# Edite .env: DB_HOST, DB_USER, DB_PASS, DB_NAME=oss, JWT_SECRET
 
-# open .env and modify the environment variables (if needed)
+# 3. Criar o banco no MySQL
+# CREATE DATABASE oss CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+# 4. Executar migrações (cria as 13+ tabelas)
+npm run db:migrate
+
+# 5. Popular dados iniciais (contrato SCMC-2026-001, unidades, 28 indicadores, metas 2026)
+npm run db:seed
+
+# 6. Iniciar em desenvolvimento (backend + frontend)
+npm run dev
 ```
+
+## Execução Unificada (Backend + Frontend)
+
+### Desenvolvimento
+
+- `npm run dev`
+  - Backend Express em `http://localhost:3001`
+  - Frontend Vite em `http://localhost:3000` (com proxy `/api` para `3001`)
+  - Hot-reload ativo para frontend e backend
+
+### Produção (Servidor Único Express)
+
+- `npm run prod`
+  - Executa `vite build` em `frontend/dist`
+  - Inicia Express em `http://localhost:3001`
+  - Express serve API (`/api/*`) e frontend estático (`frontend/dist`)
+  - Rotas SPA (`/dashboard`, `/relatorios`, etc.) retornam `index.html`
+
+## Endpoints Principais
+
+| Método | Endpoint | Descrição | Perfis |
+|--------|----------|-----------|--------|
+| POST | `/api/auth/login` | Login JWT | Público |
+| GET | `/api/acompanhamento-mensal` | Listar acompanhamentos | Todos |
+| POST | `/api/acompanhamento-mensal` | Registrar valor realizado | Gestor_SMS |
+| PUT | `/api/acompanhamento-mensal/:id/aprovar` | Aprovar acompanhamento | Auditora |
+| POST | `/api/acompanhamento-mensal/calcular-descontos?mes=YYYY-MM-01` | Calcular descontos | Admin, Gestor_SMS |
+| GET | `/api/acompanhamento-mensal/repasse?mes=YYYY-MM-01` | Repasse final do mês | Admin, Gestor_SMS, Auditora, CMS |
+| GET | `/api/indicadores` | Listar indicadores ativos | Todos |
+| POST | `/api/indicadores` | Criar indicador | Admin |
+| DELETE | `/api/indicadores/:id` | Desativar (soft-delete) | Admin |
+| GET | `/api/contratos` | Listar contratos | Todos |
+| GET | `/api/contratos/:id/descontos` | Descontos de um contrato | Admin, Gestor_SMS, Auditora, CMS |
+| GET | `/api/descontos?mes=` | Listar descontos | Todos |
+| PUT | `/api/descontos/:id/auditar` | Auditar desconto | Auditora |
+| GET | `/api/descontos/repasse?mes=` | Repasse com breakdown | Admin, Gestor_SMS |
+| GET | `/api/metas?indicador_id=&ano=` | Listar metas | Todos |
+| POST | `/api/metas` | Criar meta | Admin, Gestor_SMS |
 
 
 ## Features
@@ -51,20 +89,20 @@ cp .env.example .env
 Running locally:
 
 ```bash
-yarn dev
+npm run dev
 ```
 
 Running in production:
 
 ```bash
-yarn start
+npm run prod
 ```
 
 Testing:
 
 ```bash
 # run all tests
-yarn test
+npm test
 
 ```
 
@@ -76,7 +114,7 @@ The environment variables can be found and modified in the `.env` file. They com
 #Server environment
 NODE_ENV=development
 #Port number
-PORT=5000
+PORT=3001
 
 #Db configuration
 DB_HOST=db-host
@@ -122,6 +160,23 @@ src\
  |--app.js          # Express app
  |--cronJobs.js     # Job Scheduler
  |--index.js        # App entry point
+frontend\
+ |--src\            # React + TypeScript (Vite)
+ |--vite.config.ts  # Dev server + proxy /api
+ecosystem.config.js # PM2 config (npm start)
+```
+
+## PM2 (Deploy Local SMS Americana)
+
+```bash
+# Build + start com PM2
+npm run build
+pm2 start ecosystem.config.js
+
+# Comandos úteis
+pm2 status
+pm2 logs saudecontrol-oss
+pm2 restart saudecontrol-oss
 ```
 
 ## License

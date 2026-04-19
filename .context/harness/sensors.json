@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "generatedAt": "2026-04-13T02:41:49.010Z",
+  "source": "manual",
+  "stack": {
+    "primaryLanguage": "javascript",
+    "languages": [
+      "javascript",
+      "typescript"
+    ],
+    "frameworks": [
+      "express",
+      "react",
+      "sequelize"
+    ],
+    "buildTools": [
+      "vite",
+      "docker"
+    ],
+    "testFrameworks": [
+      "jest"
+    ],
+    "packageManager": "npm"
+  },
+  "sensors": [
+    {
+      "id": "test",
+      "name": "Test Suite",
+      "description": "Executar testes Jest do backend",
+      "severity": "critical",
+      "command": "npm test -- --runInBand",
+      "script": "test"
+    },
+    {
+      "id": "typecheck",
+      "name": "TypeScript Check",
+      "description": "Verificar tipos TypeScript do frontend (zero erros obrigatório)",
+      "severity": "critical",
+      "command": "cd frontend && npx tsc --noEmit",
+      "cwd": "frontend"
+    },
+    {
+      "id": "migrate",
+      "name": "Database Migrations",
+      "description": "Executar migrações Sequelize pendentes",
+      "severity": "critical",
+      "command": "npx sequelize-cli db:migrate",
+      "script": "db:migrate"
+    },
+    {
+      "id": "migrate-status",
+      "name": "Migration Status",
+      "description": "Verificar status das migrações (pendentes vs executadas)",
+      "severity": "warning",
+      "command": "npx sequelize-cli db:migrate:status"
+    },
+    {
+      "id": "seed",
+      "name": "Database Seeds",
+      "description": "Popular banco com dados iniciais (2 OSS, 3 contratos, 5 unidades, 28 indicadores)",
+      "severity": "warning",
+      "command": "npx sequelize-cli db:seed:all",
+      "script": "db:seed"
+    },
+    {
+      "id": "frontend-build",
+      "name": "Frontend Build",
+      "description": "Build de produção do frontend React + Vite",
+      "severity": "critical",
+      "command": "cd frontend && npm run build",
+      "cwd": "frontend"
+    },
+    {
+      "id": "backend-start",
+      "name": "Backend Server",
+      "description": "Iniciar servidor Express na porta 5000",
+      "severity": "critical",
+      "command": "npm start",
+      "script": "start"
+    },
+    {
+      "id": "frontend-dev",
+      "name": "Frontend Dev Server",
+      "description": "Iniciar dev server Vite na porta 5173 com proxy para API",
+      "severity": "warning",
+      "command": "cd frontend && npm run dev",
+      "cwd": "frontend"
+    }
+  ]
+}

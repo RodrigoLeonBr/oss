@@ -1,0 +1,39 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/forms";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-primary: #1E40AF;
+  --color-primary-light: #3B82F6;
+  --color-primary-dark: #1E3A8A;
+
+  --color-cumprido: #059669;
+  --color-parcial: #D97706;
+  --color-nao-cumprido: #DC2626;
+  --color-na: #6B7280;
+
+  --color-bg-dark: #0F172A;
+  --color-bg-light: #F8FAFC;
+  --color-surface-dark: #1E293B;
+  --color-surface-light: #FFFFFF;
+  --color-border-dark: #334155;
+  --color-border-light: #E2E8F0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply bg-bg-light text-slate-900 antialiased;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+.dark body {
+  @apply bg-bg-dark text-slate-100;
+}
+
+:focus-visible {
+  @apply outline-2 outline-offset-2 outline-primary;
+}

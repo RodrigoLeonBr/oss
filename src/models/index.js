@@ -21,7 +21,13 @@ fs.readdirSync(__dirname)
     })
     .forEach((file) => {
         // eslint-disable-next-line global-require,import/no-dynamic-require
-        const model = require(path.join(__dirname, file))(sequelize, Sequelize.DataTypes);
+        const exported = require(path.join(__dirname, file));
+        let model;
+        if (typeof exported === 'function' && exported.prototype instanceof Sequelize.Model) {
+            model = exported.init(sequelize);
+        } else {
+            model = exported(sequelize, Sequelize.DataTypes);
+        }
         db[model.name] = model;
     });
 
