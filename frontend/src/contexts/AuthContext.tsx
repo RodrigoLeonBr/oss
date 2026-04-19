@@ -32,11 +32,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   })
 
   const [darkMode, setDarkMode] = useState(() => {
-    return localStorage.getItem('oss_dark_mode') === 'true'
+    const saved = localStorage.getItem('oss_dark_mode') === 'true'
+    if (saved) document.documentElement.setAttribute('data-theme', 'dark')
+    return saved
   })
 
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', darkMode)
+    if (darkMode) {
+      document.documentElement.setAttribute('data-theme', 'dark')
+    } else {
+      document.documentElement.removeAttribute('data-theme')
+    }
     localStorage.setItem('oss_dark_mode', String(darkMode))
   }, [darkMode])
 
@@ -71,7 +77,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [auth.user],
   )
 
-  const toggleDarkMode = useCallback(() => setDarkMode(prev => !prev), [])
+  const toggleDarkMode = useCallback(() => {
+    const next = !darkMode
+    if (next) {
+      document.documentElement.setAttribute('data-theme', 'dark')
+    } else {
+      document.documentElement.removeAttribute('data-theme')
+    }
+    setDarkMode(next)
+  }, [darkMode])
 
   return (
     <AuthContext.Provider value={{ ...auth, login, logout, hasPermission, darkMode, toggleDarkMode }}>

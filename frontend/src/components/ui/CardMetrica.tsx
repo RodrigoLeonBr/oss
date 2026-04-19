@@ -5,13 +5,8 @@ import type { StatusCumprimento } from '../../types'
 
 ChartJS.register(ArcElement, Tooltip)
 
-const statusColors: Record<StatusCumprimento, string> = {
-  cumprido: '#059669',
-  parcial: '#D97706',
-  nao_cumprido: '#DC2626',
-  nao_aplicavel: '#6B7280',
-  aguardando: '#6B7280',
-}
+const getCssVar = (name: string) =>
+  getComputedStyle(document.documentElement).getPropertyValue(name).trim()
 
 interface Props {
   titulo: string
@@ -32,14 +27,23 @@ export default function CardMetrica({
   icone,
   variacao,
 }: Props) {
-  const cor = statusColors[status]
+  const statusColorMap: Record<StatusCumprimento, string> = {
+    cumprido:      getCssVar('--status-ok'),
+    parcial:       getCssVar('--status-warn'),
+    nao_cumprido:  getCssVar('--status-bad'),
+    nao_aplicavel: getCssVar('--sem-slate-500'),
+    aguardando:    getCssVar('--sem-slate-500'),
+  }
+
+  const cor = statusColorMap[status]
+  const trackColor = getCssVar('--n-15')
   const restante = percentual != null ? Math.max(0, 100 - Math.min(percentual, 100)) : 100
 
   const chartData = {
     datasets: [
       {
         data: percentual != null ? [Math.min(percentual, 100), restante] : [0, 100],
-        backgroundColor: [cor, '#E2E8F0'],
+        backgroundColor: [cor, trackColor],
         borderWidth: 0,
         cutout: '75%',
       },
@@ -53,15 +57,15 @@ export default function CardMetrica({
   }
 
   return (
-    <div className="rounded-xl border border-border-light bg-surface-light p-4 shadow-sm transition-shadow hover:shadow-md dark:border-border-dark dark:bg-surface-dark">
+    <div className="rounded-xl border border-border-subtle bg-surface p-4 shadow-sm transition-shadow hover:shadow-md">
       <div className="flex items-start justify-between">
         <div className="flex-1">
-          <p className="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
+          <p className="text-xs font-medium uppercase tracking-wider text-text-muted">
             {titulo}
           </p>
-          <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-100">{valor}</p>
+          <p className="mt-1 text-2xl font-bold text-text-primary">{valor}</p>
           {subtitulo && (
-            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{subtitulo}</p>
+            <p className="mt-0.5 text-xs text-text-muted">{subtitulo}</p>
           )}
           {variacao != null && (
             <div className={`mt-1 flex items-center gap-1 text-xs font-medium ${

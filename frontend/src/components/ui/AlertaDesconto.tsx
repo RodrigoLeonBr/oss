@@ -29,14 +29,14 @@ export default function AlertaDesconto({ desconto }: Props) {
       />
       <div className="flex-1">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-slate-900 dark:text-slate-200">
+          <span className="text-sm font-medium text-text-primary">
             {label} — {desconto.percentual_desconto}%
           </span>
           <span className={`text-sm font-bold ${isProducao ? 'text-nao-cumprido' : 'text-parcial'}`}>
             -{formatCurrency(desconto.valor_desconto)}
           </span>
         </div>
-        <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-400">
+        <p className="mt-0.5 text-xs text-text-secondary">
           {isProducao
             ? `Bloco: ${(desconto as DescontoBloco).bloco?.nome ?? desconto.bloco_id} · Faixa: ${(desconto as DescontoBloco).faixa}`
             : `Indicador: ${(desconto as DescontoIndicador).indicador?.nome ?? desconto.indicador_id} · Modelo: ${(desconto as DescontoIndicador).modelo_desconto}`}

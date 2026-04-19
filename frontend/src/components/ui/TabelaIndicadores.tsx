@@ -73,7 +73,7 @@ export default function TabelaIndicadores({ dados, onRowClick }: Props) {
   }
 
   const SortIcon = ({ col }: { col: SortKey }) => {
-    if (sortKey !== col) return <ChevronsUpDown size={14} className="text-slate-400" />
+    if (sortKey !== col) return <ChevronsUpDown size={14} className="text-text-faint" />
     return sortDir === 'asc' ? <ChevronUp size={14} /> : <ChevronDown size={14} />
   }
 
@@ -81,19 +81,19 @@ export default function TabelaIndicadores({ dados, onRowClick }: Props) {
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
           <input
             type="text"
             placeholder="Buscar indicador..."
             value={busca}
             onChange={e => { setBusca(e.target.value); setPagina(0) }}
-            className="w-full rounded-lg border border-border-light bg-surface-light py-2 pl-9 pr-3 text-sm focus:border-primary focus:ring-primary dark:border-border-dark dark:bg-surface-dark dark:text-slate-200"
+            className="w-full rounded-lg border border-border-subtle bg-surface py-2 pl-9 pr-3 text-sm focus:border-primary focus:ring-primary"
           />
         </div>
         <select
           value={filtroGrupo}
           onChange={e => { setFiltroGrupo(e.target.value as GrupoIndicador | ''); setPagina(0) }}
-          className="rounded-lg border border-border-light bg-surface-light px-3 py-2 text-sm dark:border-border-dark dark:bg-surface-dark dark:text-slate-200"
+          className="rounded-lg border border-border-subtle bg-surface px-3 py-2 text-sm"
           aria-label="Filtrar por grupo"
         >
           <option value="">Todos os grupos</option>
@@ -105,7 +105,7 @@ export default function TabelaIndicadores({ dados, onRowClick }: Props) {
         <select
           value={porPagina}
           onChange={e => { setPorPagina(Number(e.target.value)); setPagina(0) }}
-          className="rounded-lg border border-border-light bg-surface-light px-3 py-2 text-sm dark:border-border-dark dark:bg-surface-dark dark:text-slate-200"
+          className="rounded-lg border border-border-subtle bg-surface px-3 py-2 text-sm"
           aria-label="Itens por página"
         >
           <option value={10}>10 / pág</option>
@@ -114,9 +114,9 @@ export default function TabelaIndicadores({ dados, onRowClick }: Props) {
         </select>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-border-light dark:border-border-dark">
+      <div className="overflow-x-auto rounded-lg border border-border-subtle">
         <table className="w-full text-left text-sm">
-          <thead className="border-b border-border-light bg-slate-50 dark:border-border-dark dark:bg-slate-800/50">
+          <thead className="border-b border-border-subtle bg-surface-alt">
             <tr>
               {([
                 ['codigo', 'Código'],
@@ -129,7 +129,7 @@ export default function TabelaIndicadores({ dados, onRowClick }: Props) {
               ] as [SortKey, string][]).map(([key, label]) => (
                 <th
                   key={key}
-                  className="cursor-pointer whitespace-nowrap px-4 py-3 font-medium text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
+                  className="cursor-pointer whitespace-nowrap px-4 py-3 font-medium text-text-muted hover:text-text-primary"
                   onClick={() => handleSort(key)}
                 >
                   <span className="inline-flex items-center gap-1">
@@ -139,21 +139,21 @@ export default function TabelaIndicadores({ dados, onRowClick }: Props) {
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-border-light dark:divide-border-dark">
+          <tbody className="divide-y divide-border-subtle">
             {paginados.map(d => (
               <tr
                 key={d.acomp_id}
-                className={`transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50 ${
+                className={`transition-colors hover:bg-hover ${
                   onRowClick ? 'cursor-pointer' : ''
                 }`}
                 onClick={() => onRowClick?.(d)}
                 tabIndex={onRowClick ? 0 : undefined}
                 onKeyDown={e => { if (e.key === 'Enter') onRowClick?.(d) }}
               >
-                <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-slate-500">
+                <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-text-muted">
                   {d.indicador?.codigo}
                 </td>
-                <td className="px-4 py-3 text-slate-900 dark:text-slate-200">
+                <td className="px-4 py-3 text-text-primary">
                   {d.indicador?.nome}
                 </td>
                 <td className="whitespace-nowrap px-4 py-3">
@@ -161,13 +161,13 @@ export default function TabelaIndicadores({ dados, onRowClick }: Props) {
                     {d.indicador?.grupo}
                   </span>
                 </td>
-                <td className="whitespace-nowrap px-4 py-3 text-right font-mono text-slate-600 dark:text-slate-400">
+                <td className="whitespace-nowrap px-4 py-3 text-right font-mono text-text-secondary">
                   {formatNumber(d.meta_vigente_mensal ?? 0)}
                 </td>
-                <td className="whitespace-nowrap px-4 py-3 text-right font-mono text-slate-900 dark:text-slate-200">
+                <td className="whitespace-nowrap px-4 py-3 text-right font-mono text-text-primary">
                   {formatNumber(d.valor_realizado ?? 0)}
                 </td>
-                <td className="whitespace-nowrap px-4 py-3 text-right font-mono font-bold">
+                <td className="whitespace-nowrap px-4 py-3 text-right font-mono font-bold text-text-primary">
                   {formatPercent(d.percentual_cumprimento ?? 0)}
                 </td>
                 <td className="whitespace-nowrap px-4 py-3">
@@ -177,7 +177,7 @@ export default function TabelaIndicadores({ dados, onRowClick }: Props) {
             ))}
             {paginados.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
+                <td colSpan={7} className="px-4 py-8 text-center text-text-muted">
                   Nenhum indicador encontrado
                 </td>
               </tr>
@@ -187,7 +187,7 @@ export default function TabelaIndicadores({ dados, onRowClick }: Props) {
       </div>
 
       {totalPaginas > 1 && (
-        <div className="flex items-center justify-between text-sm text-slate-500">
+        <div className="flex items-center justify-between text-sm text-text-muted">
           <span>
             {filtrados.length} indicador{filtrados.length !== 1 ? 'es' : ''} — Página {pagina + 1} de {totalPaginas}
           </span>
@@ -195,14 +195,14 @@ export default function TabelaIndicadores({ dados, onRowClick }: Props) {
             <button
               disabled={pagina === 0}
               onClick={() => setPagina(p => p - 1)}
-              className="rounded-lg px-3 py-1 hover:bg-slate-100 disabled:opacity-50 dark:hover:bg-slate-800"
+              className="rounded-lg px-3 py-1 hover:bg-hover disabled:opacity-50"
             >
               Anterior
             </button>
             <button
               disabled={pagina >= totalPaginas - 1}
               onClick={() => setPagina(p => p + 1)}
-              className="rounded-lg px-3 py-1 hover:bg-slate-100 disabled:opacity-50 dark:hover:bg-slate-800"
+              className="rounded-lg px-3 py-1 hover:bg-hover disabled:opacity-50"
             >
               Próxima
             </button>

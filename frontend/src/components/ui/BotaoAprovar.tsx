@@ -51,7 +51,7 @@ export default function BotaoAprovar({
         <button
           onClick={handleCancel}
           disabled={loading}
-          className="rounded-lg px-3 py-1.5 text-sm text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+          className="rounded-lg px-3 py-1.5 text-sm text-text-secondary hover:bg-hover"
         >
           Cancelar
         </button>

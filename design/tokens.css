@@ -1,0 +1,204 @@
+/* ============================================================
+   OSS SAÚDE — DESIGN TOKENS
+   Institutional Brazilian modern · light + dark
+   ============================================================ */
+
+:root {
+  /* ——— Core institutional ——— */
+  --brand-navy-900: #0b1f3a;
+  --brand-navy-800: #122a4d;
+  --brand-navy-700: #1b3a66;
+  --brand-navy-600: #26528c;
+  --brand-navy-500: #3a6fb5;
+  --brand-navy-400: #6a94cc;
+  --brand-navy-300: #a8c2e0;
+  --brand-navy-200: #d2dff0;
+  --brand-navy-100: #eaf0f9;
+  --brand-navy-50:  #f4f7fc;
+
+  /* ——— Semantic (teal / amber / coral) ——— */
+  --sem-teal-700:   #0a5e5e;
+  --sem-teal-600:   #0d7373;
+  --sem-teal-500:   #138a8a;
+  --sem-teal-100:   #d6efee;
+  --sem-teal-50:    #ebf7f6;
+
+  --sem-amber-700:  #9a6300;
+  --sem-amber-600:  #b67810;
+  --sem-amber-500:  #d69324;
+  --sem-amber-100:  #fbecc9;
+  --sem-amber-50:   #fdf6e4;
+
+  --sem-coral-700:  #a13836;
+  --sem-coral-600:  #c04a45;
+  --sem-coral-500:  #d95f58;
+  --sem-coral-100:  #fadedc;
+  --sem-coral-50:   #fdeeec;
+
+  --sem-slate-500:  #64748b;
+  --sem-slate-100:  #e5e9f0;
+
+  /* ——— Neutrals — cool institutional greys ——— */
+  --n-00: #ffffff;
+  --n-05: #f7f9fb;
+  --n-10: #eef2f6;
+  --n-15: #e2e8ef;
+  --n-20: #d3dbe5;
+  --n-30: #b7c2d0;
+  --n-40: #8e9cae;
+  --n-50: #6a7688;
+  --n-60: #4e5867;
+  --n-70: #343c48;
+  --n-80: #202831;
+  --n-90: #121820;
+  --n-95: #0a0f16;
+
+  /* ——— Semantic surfaces (LIGHT) ——— */
+  --bg-canvas:       var(--n-05);
+  --bg-surface:      var(--n-00);
+  --bg-surface-alt:  var(--n-10);
+  --bg-sunken:       var(--n-10);
+  --bg-hover:        var(--n-10);
+  --bg-active:       var(--brand-navy-100);
+
+  --border-subtle:   var(--n-15);
+  --border-default:  var(--n-20);
+  --border-strong:   var(--n-30);
+
+  --text-primary:    var(--n-90);
+  --text-secondary:  var(--n-60);
+  --text-muted:      var(--n-50);
+  --text-faint:      var(--n-40);
+  --text-inverse:    var(--n-00);
+
+  --accent:          var(--brand-navy-700);
+  --accent-hover:    var(--brand-navy-800);
+  --accent-soft:     var(--brand-navy-100);
+
+  --status-ok:       var(--sem-teal-600);
+  --status-ok-bg:    var(--sem-teal-50);
+  --status-ok-border:var(--sem-teal-100);
+  --status-warn:     var(--sem-amber-600);
+  --status-warn-bg:  var(--sem-amber-50);
+  --status-warn-border: var(--sem-amber-100);
+  --status-bad:      var(--sem-coral-600);
+  --status-bad-bg:   var(--sem-coral-50);
+  --status-bad-border: var(--sem-coral-100);
+
+  --shadow-xs: 0 1px 1px rgba(11,31,58,.04);
+  --shadow-sm: 0 1px 2px rgba(11,31,58,.06), 0 1px 1px rgba(11,31,58,.04);
+  --shadow-md: 0 4px 12px rgba(11,31,58,.08), 0 1px 2px rgba(11,31,58,.04);
+  --shadow-lg: 0 12px 32px rgba(11,31,58,.12), 0 2px 6px rgba(11,31,58,.06);
+
+  /* ——— Type ——— */
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* ——— Radii ——— */
+  --r-0: 0;
+  --r-1: 2px;
+  --r-2: 4px;
+  --r-3: 6px;
+  --r-4: 8px;
+  --r-5: 10px;
+  --r-full: 999px;
+
+  /* ——— Space (4-base) ——— */
+  --s-0: 0;
+  --s-1: 2px;
+  --s-2: 4px;
+  --s-3: 8px;
+  --s-4: 12px;
+  --s-5: 16px;
+  --s-6: 20px;
+  --s-7: 24px;
+  --s-8: 32px;
+  --s-9: 40px;
+  --s-10: 48px;
+
+  --focus-ring: 0 0 0 2px var(--bg-surface), 0 0 0 4px var(--brand-navy-500);
+}
+
+[data-theme="dark"] {
+  --bg-canvas:       var(--n-95);
+  --bg-surface:      #0f151d;
+  --bg-surface-alt:  var(--n-90);
+  --bg-sunken:       #080c12;
+  --bg-hover:        #1a2230;
+  --bg-active:       #1e2a3e;
+
+  --border-subtle:   #1b2430;
+  --border-default:  #26313f;
+  --border-strong:   #334052;
+
+  --text-primary:    #e7ecf3;
+  --text-secondary:  #aab4c2;
+  --text-muted:      #808a98;
+  --text-faint:      #5b6472;
+  --text-inverse:    var(--n-95);
+
+  --accent:          #6a94cc;
+  --accent-hover:    #a8c2e0;
+  --accent-soft:     #14223a;
+
+  --status-ok:       #4ab7a8;
+  --status-ok-bg:    #0f2523;
+  --status-ok-border:#15342f;
+  --status-warn:     #e2a84a;
+  --status-warn-bg:  #2a2008;
+  --status-warn-border: #3d2f10;
+  --status-bad:      #e68078;
+  --status-bad-bg:   #2a1412;
+  --status-bad-border: #3e1c1a;
+
+  --shadow-xs: 0 1px 1px rgba(0,0,0,.3);
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.4);
+  --shadow-md: 0 4px 12px rgba(0,0,0,.45);
+  --shadow-lg: 0 12px 32px rgba(0,0,0,.55);
+
+  --focus-ring: 0 0 0 2px var(--bg-surface), 0 0 0 4px var(--brand-navy-400);
+}
+
+/* ============================================================
+   BASE
+   ============================================================ */
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: var(--font-sans);
+  background: var(--bg-canvas);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "ss01", "cv11";
+  font-size: 14px;
+  line-height: 1.5;
+}
+.mono { font-family: var(--font-mono); font-feature-settings: "zero", "ss01"; }
+.tabular { font-variant-numeric: tabular-nums; }
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 2px; }
+
+button { font-family: inherit; cursor: pointer; }
+input, select, textarea { font-family: inherit; }
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--r-3);
+}
+
+/* ============================================================
+   UTILITIES
+   ============================================================ */
+.muted { color: var(--text-muted); }
+.secondary { color: var(--text-secondary); }
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+.rule { height: 1px; background: var(--border-subtle); border: 0; margin: 0; }

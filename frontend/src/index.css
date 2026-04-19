@@ -1,39 +1,205 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/forms";
 
-@custom-variant dark (&:where(.dark, .dark *));
+/* Dark mode via [data-theme="dark"] attribute on <html> */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
-@theme {
-  --color-primary: #1E40AF;
-  --color-primary-light: #3B82F6;
-  --color-primary-dark: #1E3A8A;
+/* ================================================================
+   DESIGN TOKENS — CSS custom properties
+   OSS Saúde Americana · Institutional Brazilian Modern · light + dark
+   ================================================================ */
 
-  --color-cumprido: #059669;
-  --color-parcial: #D97706;
-  --color-nao-cumprido: #DC2626;
-  --color-na: #6B7280;
+:root {
+  /* ——— Brand navy ——— */
+  --brand-navy-900: #0b1f3a;
+  --brand-navy-800: #122a4d;
+  --brand-navy-700: #1b3a66;
+  --brand-navy-600: #26528c;
+  --brand-navy-500: #3a6fb5;
+  --brand-navy-400: #6a94cc;
+  --brand-navy-300: #a8c2e0;
+  --brand-navy-200: #d2dff0;
+  --brand-navy-100: #eaf0f9;
+  --brand-navy-50:  #f4f7fc;
 
-  --color-bg-dark: #0F172A;
-  --color-bg-light: #F8FAFC;
-  --color-surface-dark: #1E293B;
-  --color-surface-light: #FFFFFF;
-  --color-border-dark: #334155;
-  --color-border-light: #E2E8F0;
+  /* ——— Semantic palette ——— */
+  --sem-teal-600:   #0d7373;
+  --sem-teal-100:   #d6efee;
+  --sem-teal-50:    #ebf7f6;
+
+  --sem-amber-600:  #b67810;
+  --sem-amber-100:  #fbecc9;
+  --sem-amber-50:   #fdf6e4;
+
+  --sem-coral-600:  #c04a45;
+  --sem-coral-100:  #fadedc;
+  --sem-coral-50:   #fdeeec;
+
+  --sem-slate-500:  #64748b;
+
+  /* ——— Neutrals (cool institutional greys) ——— */
+  --n-00: #ffffff;
+  --n-05: #f7f9fb;
+  --n-10: #eef2f6;
+  --n-15: #e2e8ef;
+  --n-20: #d3dbe5;
+  --n-30: #b7c2d0;
+  --n-40: #8e9cae;
+  --n-50: #6a7688;
+  --n-60: #4e5867;
+  --n-70: #343c48;
+  --n-80: #202831;
+  --n-90: #121820;
+  --n-95: #0a0f16;
+
+  /* ——— Semantic surfaces — LIGHT ——— */
+  --bg-canvas:      var(--n-05);
+  --bg-surface:     var(--n-00);
+  --bg-surface-alt: var(--n-10);
+  --bg-hover:       var(--n-10);
+  --bg-active:      var(--brand-navy-100);
+
+  --border-subtle:  var(--n-15);
+  --border-default: var(--n-20);
+  --border-strong:  var(--n-30);
+
+  --text-primary:   var(--n-90);
+  --text-secondary: var(--n-60);
+  --text-muted:     var(--n-50);
+  --text-faint:     var(--n-40);
+  --text-inverse:   var(--n-00);
+
+  --accent:         var(--brand-navy-700);
+  --accent-hover:   var(--brand-navy-800);
+  --accent-soft:    var(--brand-navy-100);
+
+  --status-ok:           var(--sem-teal-600);
+  --status-ok-bg:        var(--sem-teal-50);
+  --status-ok-border:    var(--sem-teal-100);
+  --status-warn:         var(--sem-amber-600);
+  --status-warn-bg:      var(--sem-amber-50);
+  --status-warn-border:  var(--sem-amber-100);
+  --status-bad:          var(--sem-coral-600);
+  --status-bad-bg:       var(--sem-coral-50);
+  --status-bad-border:   var(--sem-coral-100);
+
+  --shadow-xs: 0 1px 1px rgba(11,31,58,.04);
+  --shadow-sm: 0 1px 2px rgba(11,31,58,.06), 0 1px 1px rgba(11,31,58,.04);
+  --shadow-md: 0 4px 12px rgba(11,31,58,.08), 0 1px 2px rgba(11,31,58,.04);
+  --shadow-lg: 0 12px 32px rgba(11,31,58,.12), 0 2px 6px rgba(11,31,58,.06);
+
+  --focus-ring: 0 0 0 2px var(--bg-surface), 0 0 0 4px var(--brand-navy-500);
 }
+
+/* ——— Dark mode overrides ——— */
+[data-theme="dark"] {
+  --bg-canvas:      var(--n-95);
+  --bg-surface:     #0f151d;
+  --bg-surface-alt: var(--n-90);
+  --bg-hover:       #1a2230;
+  --bg-active:      #1e2a3e;
+
+  --border-subtle:  #1b2430;
+  --border-default: #26313f;
+  --border-strong:  #334052;
+
+  --text-primary:   #e7ecf3;
+  --text-secondary: #aab4c2;
+  --text-muted:     #808a98;
+  --text-faint:     #5b6472;
+  --text-inverse:   var(--n-95);
+
+  --accent:         #6a94cc;
+  --accent-hover:   #a8c2e0;
+  --accent-soft:    #14223a;
+
+  --status-ok:           #4ab7a8;
+  --status-ok-bg:        #0f2523;
+  --status-ok-border:    #15342f;
+  --status-warn:         #e2a84a;
+  --status-warn-bg:      #2a2008;
+  --status-warn-border:  #3d2f10;
+  --status-bad:          #e68078;
+  --status-bad-bg:       #2a1412;
+  --status-bad-border:   #3e1c1a;
+
+  --shadow-xs: 0 1px 1px rgba(0,0,0,.3);
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.4);
+  --shadow-md: 0 4px 12px rgba(0,0,0,.45);
+  --shadow-lg: 0 12px 32px rgba(0,0,0,.55);
+
+  --focus-ring: 0 0 0 2px var(--bg-surface), 0 0 0 4px var(--brand-navy-400);
+}
+
+/* ================================================================
+   TAILWIND THEME
+   ================================================================ */
+
+/* Static values — needed so opacity modifiers (/10, /30…) work on status colors */
+@theme {
+  --color-primary:       #1b3a66;
+  --color-primary-light: #3a6fb5;
+  --color-primary-dark:  #122a4d;
+
+  --color-cumprido:    #0d7373;
+  --color-parcial:     #b67810;
+  --color-nao-cumprido:#c04a45;
+  --color-na:          #64748b;
+
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+/* Inline tokens — reference CSS vars so they auto-switch with [data-theme="dark"] */
+@theme inline {
+  /* Surfaces */
+  --color-canvas:      var(--bg-canvas);
+  --color-surface:     var(--bg-surface);
+  --color-surface-alt: var(--bg-surface-alt);
+  --color-hover:       var(--bg-hover);
+
+  /* Borders */
+  --color-border-subtle:  var(--border-subtle);
+  --color-border-default: var(--border-default);
+
+  /* Text */
+  --color-text-primary:   var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted:     var(--text-muted);
+  --color-text-faint:     var(--text-faint);
+
+  /* Status — full triads (text / bg / border utilities) */
+  --color-status-ok:          var(--status-ok);
+  --color-status-ok-bg:       var(--status-ok-bg);
+  --color-status-ok-border:   var(--status-ok-border);
+  --color-status-warn:        var(--status-warn);
+  --color-status-warn-bg:     var(--status-warn-bg);
+  --color-status-warn-border: var(--status-warn-border);
+  --color-status-bad:         var(--status-bad);
+  --color-status-bad-bg:      var(--status-bad-bg);
+  --color-status-bad-border:  var(--status-bad-border);
+}
+
+/* ================================================================
+   BASE STYLES
+   ================================================================ */
 
 html {
   scroll-behavior: smooth;
 }
 
 body {
-  @apply bg-bg-light text-slate-900 antialiased;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-}
-
-.dark body {
-  @apply bg-bg-dark text-slate-100;
+  @apply antialiased;
+  font-family: var(--font-sans);
+  background: var(--bg-canvas);
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.5;
+  font-feature-settings: "ss01", "cv11";
 }
 
 :focus-visible {
-  @apply outline-2 outline-offset-2 outline-primary;
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: 6px;
 }

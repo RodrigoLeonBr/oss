@@ -63,11 +63,11 @@ export default function Sidebar() {
 
   return (
     <aside
-      className={`flex h-screen flex-col border-r border-border-light bg-surface-light transition-all duration-300 dark:border-border-dark dark:bg-surface-dark ${
+      className={`flex h-screen flex-col border-r border-border-subtle bg-surface transition-all duration-300 ${
         collapsed ? 'w-16' : 'w-64'
       }`}
     >
-      <div className="flex h-16 items-center justify-between border-b border-border-light px-4 dark:border-border-dark">
+      <div className="flex h-16 items-center justify-between border-b border-border-subtle px-4">
         {!collapsed && (
           <div className="flex items-center gap-2">
             <Heart size={24} className="text-primary" />
@@ -76,7 +76,7 @@ export default function Sidebar() {
         )}
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+          className="rounded-lg p-1.5 text-text-muted hover:bg-hover"
           aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}
         >
           {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
@@ -92,7 +92,7 @@ export default function Sidebar() {
               `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
                 isActive
                   ? 'bg-primary/10 text-primary'
-                  : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
+                  : 'text-text-secondary hover:bg-hover'
               } ${collapsed ? 'justify-center' : ''}`
             }
             title={item.label}
@@ -104,9 +104,9 @@ export default function Sidebar() {
       </nav>
 
       {!collapsed && (
-        <div className="border-t border-border-light p-4 dark:border-border-dark">
-          <p className="text-xs text-slate-400">Americana/SP</p>
-          <p className="text-xs text-slate-400">v1.0.0 MVP</p>
+        <div className="border-t border-border-subtle p-4">
+          <p className="text-xs text-text-faint">Americana/SP</p>
+          <p className="text-xs text-text-faint">v1.0.0 MVP</p>
         </div>
       )}
     </aside>

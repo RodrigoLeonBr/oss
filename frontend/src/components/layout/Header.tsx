@@ -23,12 +23,12 @@ export default function Header() {
   }
 
   return (
-    <header className="flex h-16 items-center justify-between border-b border-border-light bg-surface-light px-6 dark:border-border-dark dark:bg-surface-dark">
+    <header className="flex h-16 items-center justify-between border-b border-border-subtle bg-surface px-6">
       <div>
-        <h1 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+        <h1 className="text-lg font-semibold text-text-primary">
           {pageTitle}
         </h1>
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-text-muted">
           Sistema de Acompanhamento de Contratos de Gestão
         </p>
       </div>
@@ -36,7 +36,7 @@ export default function Header() {
       <div className="flex items-center gap-3">
         <button
           onClick={toggleDarkMode}
-          className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+          className="rounded-lg p-2 text-text-muted hover:bg-hover"
           aria-label={darkMode ? 'Modo claro' : 'Modo escuro'}
         >
           {darkMode ? <Sun size={18} /> : <Moon size={18} />}
@@ -48,14 +48,14 @@ export default function Header() {
               <User size={16} />
             </div>
             <div className="hidden sm:block">
-              <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
+              <p className="text-sm font-medium text-text-secondary">
                 {user.nome}
               </p>
-              <p className="text-xs text-slate-500">{user.perfil.replace(/_/g, ' ')}</p>
+              <p className="text-xs text-text-muted">{user.perfil.replace(/_/g, ' ')}</p>
             </div>
             <button
               onClick={handleLogout}
-              className="ml-2 rounded-lg p-2 text-slate-500 hover:bg-red-50 hover:text-nao-cumprido dark:hover:bg-red-950"
+              className="ml-2 rounded-lg p-2 text-text-muted hover:bg-status-bad-bg hover:text-status-bad"
               aria-label="Sair"
             >
               <LogOut size={18} />
