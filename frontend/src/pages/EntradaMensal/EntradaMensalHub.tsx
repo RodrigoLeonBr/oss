@@ -12,6 +12,12 @@ interface UnidadeCard {
   sigla?: string
 }
 
+const mockUnidades: UnidadeCard[] = [
+  { id: 'mock-u1', nome: 'UPA Central', sigla: 'UPA-C' },
+  { id: 'mock-u2', nome: 'Hospital Municipal', sigla: 'HM' },
+  { id: 'mock-u3', nome: 'Pronto Socorro Norte', sigla: 'PSN' },
+]
+
 type StatusCumprimento = AcompanhamentoRecord['statusCumprimento']
 
 interface Progresso {
@@ -60,7 +66,15 @@ export default function EntradaMensalHub() {
       setMeses(m)
     } catch {
       if (signal.aborted) return
-      setErroUnidades('Não foi possível carregar as unidades.')
+      if (import.meta.env.DEV) {
+        const data = mockUnidades
+        setUnidades(data)
+        const m: Record<string, string> = {}
+        for (const u of data) m[u.id] = mesDefault
+        setMeses(m)
+      } else {
+        setErroUnidades('Não foi possível carregar as unidades.')
+      }
     } finally {
       if (!signal.aborted) setLoadingUnidades(false)
     }
@@ -144,7 +158,7 @@ export default function EntradaMensalHub() {
                 className="w-full rounded-xl border border-border px-3 py-2 text-sm bg-surface text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/40"
               />
 
-              {prog === null ? (
+              {prog == null ? (
                 <div className="flex justify-center py-2">
                   <Loader2 size={14} className="animate-spin text-primary" />
                 </div>
