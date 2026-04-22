@@ -1,6 +1,6 @@
 # Project Rules and Guidelines
 
-> Auto-generated from .context/docs on 2026-04-21T13:55:52.465Z
+> Auto-generated from .context/docs on 2026-04-22T02:29:04.131Z
 
 ## README
 
@@ -45,7 +45,7 @@ Welcome to the repository knowledge base. Start with the project overview, then 
 | Tabela responsiva | `overflow-x-auto` + `minWidth` envolvendo **header + body** juntos |
 
 
-## README
+## qa/README
 
 # Q&A Index
 

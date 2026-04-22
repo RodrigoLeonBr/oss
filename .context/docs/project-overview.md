@@ -3,7 +3,7 @@ type: doc
 name: project-overview
 description: High-level overview of the project, its purpose, and key components
 category: overview
-generated: 2026-04-19
+generated: 2026-04-21
 status: filled
 scaffoldVersion: "2.0.0"
 ---
@@ -24,6 +24,7 @@ O **OSS Saúde Americana** é um sistema de acompanhamento de contratos de gest�
 - **Entry Frontend**: `frontend/src/main.tsx`
 - **Banco de dados**: MySQL 8+ via Sequelize ORM
 - **Frontend porta**: 3000 (dev server Vite/Docker) → proxy `/api` → backend porta 5000
+- **Autenticação DEV**: auto-login via `frontend/.env.development` (`VITE_DEV_EMAIL` / `VITE_DEV_PASSWORD`)
 - **Semantic snapshot**: `context({ action: "getMap", section: "all" })`
 
 ## Entry Points
@@ -36,51 +37,62 @@ O **OSS Saúde Americana** é um sistema de acompanhamento de contratos de gest�
 
 ## Key Exports
 
-- **Backend Models**: 22 modelos Sequelize (Oss, Contrato, Unidade, BlocoProducao, Indicador, Meta, AcompanhamentoMensal, DescontoBloco, DescontoIndicador, RepasseMensal, etc.)
-- **Backend Services**: AcompanhamentoService, ContratoService, IndicadorService
-- **Backend Controllers**: AcompanhamentoController, ContratoController, IndicadorController, DescontoController, MetaController
-- **Frontend Types globais** (`frontend/src/types/index.ts`): 12 interfaces (`Perfil`, `Usuario`, `Oss`, `Contrato`, `Unidade`, `Indicador`, `Meta`, `AcompanhamentoMensal`, `DescontoBloco`, `DescontoIndicador`, `RepasseMensal`, `DashboardResumo`)
-- **Frontend Types CRUD OSS** (`frontend/src/pages/Oss/types.ts`): `OssRecord`, `OssFormData`, `OssFormErrors`, helpers `mascaraCNPJ`, `validarCNPJ`, `formatarCNPJ`, `unwrap`, `mockOssRecords`
-- **Frontend Types CRUD Contratos** (`frontend/src/pages/Contratos/types.ts`): `ContratoRecord`, `ContratoFormData`, `ContratoFormErrors`, helpers `formatarMoeda`, `formatarData`, `formatarPercentual`, `unwrap`, `mockContratos`
-- **Frontend Hook `useApi`**: `get`, `post`, `put`, `del`, `request` + classe `ApiError` (status HTTP tipado)
-- **Frontend Components reutilizáveis**: `CardMetrica`, `TabelaIndicadores`, `ModalEntradaDados`, `BotaoAprovar`, `AlertaDesconto`, `SidebarMenu` (nav accordion com grupos CRUD)
+**Backend Services:**
+- `AuthService` — login via `tb_usuarios` com `senha_hash` (bcrypt)
+- `TokenService` — JWT com `sub = usuario_id`, tokens em tabela `tokens`
+- `AcompanhamentosService` — entrada mensal, cálculo de `status_cumprimento`
+- `MetaService` — CRUD de metas com `meta_tipo` (maior_igual / menor_igual)
+- `OssService`, `UnidadeService` — CRUD de OSS e Unidades de Saúde
+- `ContratoService`, `IndicadorService` — CRUD de Contratos e Indicadores
+
+**Frontend Types globais** (`frontend/src/types/index.ts`):
+- 12 interfaces: `Perfil`, `Usuario`, `Oss`, `Contrato`, `Unidade`, `Indicador`, `Meta`, `AcompanhamentoMensal`, `DescontoBloco`, `DescontoIndicador`, `RepasseMensal`, `DashboardResumo`
+
+**Frontend CRUD Pages** (cada uma com `types.ts`, `List.tsx`, `FormModal.tsx`, `DeleteModal.tsx`):
+- `Oss/` — CRUD Organizações Sociais (`OssRecord`, `mascaraCNPJ`, `validarCNPJ`)
+- `Contratos/` — CRUD Contratos de Gestão (`ContratoRecord`, `formatarMoeda`)
+- `Unidades/` — CRUD Unidades de Saúde (`UnidadeRecord`, `mascaraCNPJUnidade`)
+- `Indicadores/` — CRUD Indicadores com hub por unidade (`IndicadorRecord`, `formatarMeta`)
+- `Metas/` — CRUD Metas com `meta_tipo` (`MetaRecord`, `formatarValor`)
+- `EntradaMensal/` — Hub + List + Modal de acompanhamento mensal (`AcompanhamentoRecord`, `calcularStatusPreview`)
+
+**Frontend Hook**: `useApi` — `get/post/put/del` + classe `ApiError` (status HTTP tipado)
+
+**Frontend Auth**: `AuthContext` — login real via `POST /api/auth/login`, auto-login em DEV com `VITE_DEV_EMAIL`/`VITE_DEV_PASSWORD`
 
 ## File Structure & Code Organization
 
 - `src/` — Backend Node.js/Express
-  - `config/` — Configuração (Joi validation, database connection)
-  - `controllers/` — Controllers REST (Auth, Acompanhamento, Contrato, Indicador, Desconto, Meta)
+  - `config/` — Configuração (Joi validation, database, passport JWT)
+  - `controllers/` — Controllers REST (Auth, Acompanhamentos, Contrato, Indicador, Desconto, Meta, Oss, Unidade)
   - `dao/` — Data Access Objects (SuperDao base, AcompanhamentoDao, IndicadorDao)
-  - `db/migrations/` — 25+ migrações Sequelize (22 tabelas, view, stored procedure, trigger)
+  - `db/migrations/` — 27+ migrações Sequelize (22 tabelas + campos de snapshot + meta_tipo)
   - `db/seeders/` — Seeds com dados reais de Americana/SP
   - `helper/` — Utilitários (ApiError, EmailHelper, RedisHelper, responseHandler)
-  - `middlewares/` — Auth JWT, RBAC, Auditoria LGPD
+  - `middlewares/` — Auth JWT (Passport), RBAC, Auditoria LGPD
   - `models/` — 22 modelos Sequelize (class-based com `init` + `associate`)
-  - `route/` — Rotas Express com middleware de autenticação e autorização
-  - `service/` — Lógica de negócio (cálculo de descontos, repasses, validações)
-  - `validator/` — Validação Joi (Acompanhamento, Indicador, Meta)
+  - `route/` — Rotas Express com middleware `auth()` e `authorize([...perfis])`
+  - `service/` — Lógica de negócio (descontos, repasses, acompanhamentos, auth)
+  - `validator/` — Validação Joi (Acompanhamentos, Indicador, Meta)
 - `frontend/` — Frontend React + TypeScript + Vite 8
-  - `src/components/` — Componentes reutilizáveis
-    - `ui/` — CardMetrica, TabelaIndicadores, ModalEntradaDados, BotaoAprovar, AlertaDesconto, StatusBadge
-    - `layout/` — Header, Sidebar (legado), ProtectedRoute
-    - `SidebarMenu.tsx` — Sidebar principal com NAV_ITEMS (links diretos) e MENU_GROUPS (accordion CRUD)
-  - `src/pages/` — 8 páginas lazy-loaded
+  - `src/components/ui/` — CardMetrica, TabelaIndicadores, ModalEntradaDados, BotaoAprovar, AlertaDesconto, StatusBadge
+  - `src/components/layout/` — Header, ProtectedRoute
+  - `src/components/SidebarMenu.tsx` — Sidebar com NAV_ITEMS + MENU_GROUPS (accordion CRUD)
+  - `src/pages/` — 14 páginas lazy-loaded:
     - `LoginPage`, `DashboardPage`, `EntradaMensalPage`, `AprovacaoPage`, `RelatoriosCMSPage`, `PerfilOSSPage`
-    - `Oss/` — CRUD Organizações Sociais: `OssList.tsx`, `OssFormModal.tsx`, `OssDeleteModal.tsx`, `types.ts`
-    - `Contratos/` — CRUD Contratos de Gestão: `ContratosList.tsx`, `ContratosFormModal.tsx`, `ContratosDeleteModal.tsx`, `types.ts`
-  - `src/types/` — Interfaces TypeScript globais (`index.ts`)
-  - `src/contexts/` — `AuthContext.tsx` (JWT + RBAC, `hasPermission`, dark mode)
-  - `src/hooks/` — `useApi.ts` (fetch wrapper com `ApiError`, métodos `get/post/put/del`)
-  - `src/lib/` — Formatadores (`formatters.ts`: moeda, percentual, datas, status)
-  - `src/data/` — Mock data para desenvolvimento
-  - `vite.config.ts` — Vite 8 + Rolldown, `manualChunks` (vendor-react, vendor-charts, vendor-ui)
+    - `Oss/`, `Contratos/`, `Unidades/`, `Indicadores/`, `Metas/`, `EntradaMensal/`
+  - `src/contexts/AuthContext.tsx` — JWT real, RBAC, dark mode, auto-login DEV
+  - `src/hooks/useApi.ts` — fetch wrapper com `ApiError`, sem logout em DEV no 401
+  - `src/lib/formatters.ts` — moeda, percentual, datas, status
+  - `src/data/mock.ts` — mock data (fallback DEV em catches de API)
+  - `vite.config.ts` — Vite 8 + Rolldown, `manualChunks`
 - `docs/` — Documentação do produto (PRD_v2, ARQUITETURA_v2, banco_v2, erd_v2)
-- `specs/` — Especificações OpenAPI da autenticação
+- `specs/` — Testes unitários Jest (acompanhamentos, metas) + specs OpenAPI auth
 - `design/` — Design System HTML/JSX (tokens CSS, componentes, tabelas, gráficos)
 
 ## Technology Stack Summary
 
-**Backend**: Node.js 22 + Express.js 4 + Sequelize 6 ORM + MySQL 8+. Autenticação via Passport.js + JWT. Validação com Joi. Logging com Winston. Cache com Redis. Tarefas agendadas com node-cron. Comunicação bidirecional com Socket.io.
+**Backend**: Node.js 22 + Express.js 4 + Sequelize 6 ORM + MySQL 8+. Autenticação via Passport.js + JWT (tabela `tb_usuarios`, campo `senha_hash`). Validação com Joi. Logging com Winston. Cache com Redis. Tarefas agendadas com node-cron. Comunicação bidirecional com Socket.io.
 
 **Frontend**: React 18 + TypeScript + **Vite 8** (Rolldown engine) + Tailwind CSS + Chart.js via react-chartjs-2 + Lucide React + React Router v6. Virtualização de listas com **react-window v2** (API `rowComponent`/`rowCount`/`rowHeight`/`rowProps`). Todas as páginas são lazy-loaded via `React.lazy()` + `Suspense`.
 
@@ -89,10 +101,11 @@ O **OSS Saúde Americana** é um sistema de acompanhamento de contratos de gest�
 ## Core Framework Stack
 
 - **Backend**: Express.js (MVC) → Route → Controller → Service → DAO → Model (Sequelize)
-- **Frontend**: React SPA com Context API para estado global (AuthContext)
+- **Auth flow**: `POST /api/auth/login` → `AuthService` (query `tb_usuarios`) → `TokenService` (JWT `sub=usuario_id`) → `passport.js` (verifica JWT, carrega `Usuario` de `tb_usuarios`)
+- **Frontend**: React SPA com Context API para estado global (AuthContext com login real)
   - Roteamento: `ProtectedRoute` por `Perfil[]`, redirecionamento inteligente por perfil
-  - Padrão CRUD: `types.ts` (interfaces + helpers + mock) → `List.tsx` (tabela virtualizada react-window v2) → `FormModal.tsx` (create/edit) → `DeleteModal.tsx`
-- **Dados**: MySQL 8+ com UUIDs `DEFAULT (UUID())`, colunas geradas (`GENERATED ALWAYS AS STORED`), soft deletes, tabelas de histórico imutáveis
+  - Padrão CRUD: `types.ts` → `List.tsx` (react-window v2) → `FormModal.tsx` → `DeleteModal.tsx`
+- **Dados**: MySQL 8+ com UUIDs `DEFAULT (UUID())`, soft deletes, tabelas de histórico imutáveis
 - **Padrões**: Strategy Pattern para cálculo de descontos (flat vs ponderado), RBAC com 5 perfis de usuário
 
 ## UI & Interaction Libraries
@@ -112,10 +125,10 @@ O **OSS Saúde Americana** é um sistema de acompanhamento de contratos de gest�
 5. Popule dados iniciais: `npm run db:seed`
 6. Inicie o backend: `npm start` (porta 5000)
 7. Instale dependências frontend: `cd frontend && npm install`
-8. Inicie o frontend: `cd frontend && npm run dev` (porta 3000 via Docker, ou 5173 Vite direto)
-9. Build de produção: `npm run build` (executa `tsc && vite build` via Rolldown)
-10. Acesse `http://localhost:3000` e faça login
+8. Crie `frontend/.env.development` com `VITE_DEV_EMAIL=admin@americana.sp.gov.br` e `VITE_DEV_PASSWORD=Oss@2026`
+9. Inicie o frontend: `cd frontend && npm run dev` (porta 3000 ou 5173)
+10. Acesse `http://localhost:3000` — o login automático em DEV usa as credenciais do `.env.development`
 
 ## Next Steps
 
-O sistema está em fase MVP com CRUD frontend de OSS e Contratos implementados (mock DEV). Endpoints backend `GET/POST/PUT/DELETE /api/oss` e `/api/contratos` precisam ser implementados no Express + Sequelize. Próximas prioridades: CRUD de Unidades de Saúde, Indicadores, Metas; motor de desconto com Strategy Pattern; módulo financeiro (rubricas); consolidações periódicas; geração de relatórios PDF/Excel. Consulte `docs/PRD_v2.md` e `docs/ARQUITETURA_v2.md` para detalhes.
+O sistema está em fase MVP com CRUD completo para OSS, Contratos, Unidades, Indicadores e Metas implementados no frontend (mock DEV), e módulo de Entrada Mensal (acompanhamentos) com backend funcional. Próximas prioridades: implementar endpoints backend `GET/POST/PUT/DELETE /api/oss`, `/api/contratos`, `/api/unidades`, `/api/indicadores`; motor de desconto com Strategy Pattern; módulo financeiro (rubricas); consolidações periódicas; geração de relatórios PDF/Excel. Consulte `docs/PRD_v2.md` e `docs/ARQUITETURA_v2.md` para detalhes.

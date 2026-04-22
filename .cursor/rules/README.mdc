@@ -1,50 +1,39 @@
----
-description: Índice da base de conhecimento do projeto. Use como ponto de entrada para entender o projeto antes de qualquer tarefa.
-alwaysApply: true
----
+# Documentation Index
 
-# OSS Saúde — Base de Conhecimento
+Welcome to the repository knowledge base. Start with the project overview, then dive into specific guides as needed.
 
-> Gerado a partir de `.context/docs`. Leia os guias abaixo antes de implementar qualquer funcionalidade.
+## Core Guides
+- [Project Overview](./project-overview.md)
+- [Development Workflow](./development-workflow.md)
+- [Testing Strategy](./testing-strategy.md)
+- [Tooling & Productivity Guide](./tooling.md)
 
-## Guias Principais
+## Repository Snapshot
+- `design/` — Design System HTML/JSX (tokens CSS, componentes, tabelas, gráficos)
+- `docs/` — Documentação do produto (PRD_v2, ARQUITETURA_v2, banco_v2, erd_v2)
+- `frontend/` — React 18 + TypeScript + Vite 8 (Rolldown)
+  - `src/pages/Oss/` — CRUD Organizações Sociais (List + FormModal + DeleteModal)
+  - `src/pages/Contratos/` — CRUD Contratos de Gestão (List + FormModal + DeleteModal)
+- `package.json` — Scripts npm (start, build, db:migrate, db:seed)
+- `README.md` — Guia rápido de setup
+- `specs/` — Especificações OpenAPI da autenticação
+- `src/` — Backend Node.js/Express (controllers, services, models, migrations)
 
-- [Visão Geral do Projeto](.context/docs/project-overview.md)
-- [Fluxo de Desenvolvimento](.context/docs/development-workflow.md)
-- [Estratégia de Testes](.context/docs/testing-strategy.md)
-- [Ferramentas & Produtividade](.context/docs/tooling.md)
+## Document Map
+| Guide | File | Primary Inputs |
+| --- | --- | --- |
+| Project Overview | `project-overview.md` | Roadmap, README, stakeholder notes |
+| Development Workflow | `development-workflow.md` | Branching rules, CRUD pattern, DEV mock strategy |
+| Testing Strategy | `testing-strategy.md` | Test configs, CI gates, validação client-side CRUD |
+| Tooling & Productivity Guide | `tooling.md` | CLI scripts, Vite 8/Rolldown, react-window v2, TypeScript quirks |
 
-## Q&A — Perguntas Frequentes
+## Key Patterns (resumo rápido)
 
-- [Como configurar e rodar o projeto?](.context/docs/qa/getting-started.md)
-- [Como o codebase está organizado?](.context/docs/qa/project-structure.md)
-- [Como funciona a autenticação?](.context/docs/qa/authentication.md)
-- [Como os dados são armazenados?](.context/docs/qa/database.md)
-- [Quais endpoints de API existem?](.context/docs/qa/api-endpoints.md)
-- [Como funciona o cache?](.context/docs/qa/caching.md)
-- [Como os erros são tratados?](.context/docs/qa/error-handling.md)
-- [Como fazer deploy?](.context/docs/qa/deployment.md)
-- [Como rodar e escrever testes?](.context/docs/qa/testing.md)
-
-## Skills Disponíveis
-
-Habilidades do agente ficam em `.context/skills/`:
-- `api-design/` — Design de endpoints REST
-- `bug-investigation/` — Investigação de bugs
-- `code-review/` — Revisão de código
-- `commit-message/` — Mensagens de commit
-- `documentation/` — Documentação técnica
-- `pr-review/` — Revisão de PRs
-- `refactoring/` — Refatoração segura
-- `test-generation/` — Geração de testes
-
-## Snapshot do Repositório
-
-| Caminho | Descrição |
+| Situação | Padrão |
 | --- | --- |
-| `src/` | Backend Node.js/Express (controllers, services, models, DAO) |
-| `frontend/` | Frontend React 18 + TypeScript + Vite |
-| `docs/` | Documentação viva do produto (PRD, Arquitetura, ERD) |
-| `specs/` | Especificações OpenAPI |
-| `.context/` | Base de conhecimento e configuração de agentes |
-| `Dockerfile` / `docker-compose.yml` | Infraestrutura de containers |
+| Nova página CRUD | `types.ts` → `List.tsx` → `FormModal.tsx` → `DeleteModal.tsx` → `App.tsx` lazy + rota |
+| Input sem `erasableSyntaxOnly` | Declarar propriedade antes do `constructor`, não como parameter property |
+| react-window | API v2: `List` + `rowComponent` + `rowCount` + `rowHeight` + `rowProps` |
+| 401 em DEV | `useApi` não faz logout; componente faz fallback para mock no `catch` |
+| `Field` dentro de modal | Definir fora do componente pai para evitar perda de foco a cada render |
+| Tabela responsiva | `overflow-x-auto` + `minWidth` envolvendo **header + body** juntos |

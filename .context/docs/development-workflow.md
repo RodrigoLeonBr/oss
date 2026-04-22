@@ -3,7 +3,7 @@ type: doc
 name: development-workflow
 description: Day-to-day engineering processes, branching, and contribution guidelines
 category: workflow
-generated: 2026-04-19
+generated: 2026-04-21
 status: filled
 scaffoldVersion: "2.0.0"
 ---
@@ -48,9 +48,18 @@ types.ts              — interfaces, helpers, mock data, unwrap()
 - **Tabela responsiva**: `overflow-x-auto` + `minWidth` no container interno; `tableRef` cobre **header + body** juntos para scroll horizontal sincronizado
 - **react-window v2**: use `List` com `rowComponent`, `rowCount`, `rowHeight`, `rowProps` (não `FixedSizeList` nem `itemData`)
 
-### Tratamento de 401 em DEV
+### Autenticação em DEV
 
-O backend retorna 401 para endpoints com auth quando o token mock não é reconhecido. Em DEV, `useApi` **não chama `logout()`** — o erro é propagado e os `catch` blocks fazem fallback para mock data. Em PROD, `logout()` é chamado normalmente.
+O `AuthContext` faz login real via `POST /api/auth/login` usando credenciais de `frontend/.env.development`:
+
+```
+VITE_DEV_EMAIL=admin@americana.sp.gov.br
+VITE_DEV_PASSWORD=Oss@2026
+```
+
+Isso garante que o token enviado nos headers é um JWT válido, reconhecido pelo backend. O auto-login ocorre no mount do `AuthProvider` se o usuário não estiver autenticado.
+
+Porém, para endpoints que ainda não estão implementados no backend (ex: `/api/oss`, `/api/contratos`), o `useApi` **não chama `logout()`** em DEV para erros 401 ou 404 — o erro é propagado e os `catch` blocks fazem fallback para mock data:
 
 ```typescript
 // useApi.ts — comportamento por ambiente:

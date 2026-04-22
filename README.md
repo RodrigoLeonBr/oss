@@ -30,24 +30,24 @@ Automatiza o ciclo mensal de coleta de indicadores, cálculo de descontos por de
 |---|---|
 | **Backend** | Node.js 22 + Express 4 |
 | **ORM** | Sequelize 6 + MySQL 8 |
-| **Frontend** | React 19 + TypeScript + Vite |
-| **Estilização** | Tailwind CSS 4 |
-| **Autenticação** | Passport.js + JWT |
+| **Frontend** | React 18 + TypeScript + Vite 8 (Rolldown) |
+| **Estilização** | Tailwind CSS com design tokens CSS customizados |
+| **Autenticação** | Passport.js + JWT (`tb_usuarios` / `senha_hash`) |
 | **Cache** | Redis |
 | **Tempo Real** | Socket.io |
 | **Agendamento** | node-cron |
 | **Validação** | Joi |
 | **Logging** | Winston + daily-rotate-file |
-| **Testes** | Mocha + Chai + Sinon |
+| **Testes** | Jest |
 | **Deploy** | Docker / PM2 |
 
 ---
 
 ## Pré-requisitos
 
-- Node.js >= 18
+- Node.js 22 LTS
 - MySQL 8+
-- Redis 7+
+- Redis 7+ (opcional em DEV, necessário em PROD)
 - npm >= 9
 
 ---
@@ -55,32 +55,44 @@ Automatiza o ciclo mensal de coleta de indicadores, cálculo de descontos por de
 ## Configuração Local (XAMPP)
 
 ```bash
-# 1. Instalar dependências (backend + frontend)
+# 1. Instalar dependências backend
 npm install
-npm --prefix frontend install
 
-# 2. Configurar variáveis de ambiente
+# 2. Instalar dependências frontend
+cd frontend && npm install && cd ..
+
+# 3. Configurar variáveis de ambiente
 cp .env.example .env
 # Edite .env com as credenciais do MySQL local e um JWT_SECRET seguro
 
-# 3. Criar o banco de dados no MySQL
+# 4. Criar o banco de dados no MySQL
 # mysql -u root -p
 # CREATE DATABASE oss CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
-# 4. Executar migrações (cria as 25+ tabelas, views, procedures, triggers)
+# 5. Executar migrações (cria as 27+ tabelas)
 npm run db:migrate
 
-# 5. Popular dados iniciais
-# (2 OSS, 3 contratos, 5 unidades, 28 indicadores, metas 2026)
+# 6. Popular dados iniciais
+# (2 OSS, 3 contratos, 5 unidades, 28 indicadores, metas 2026, usuário admin)
 npm run db:seed
 
-# 6. Iniciar em desenvolvimento (backend + frontend com hot-reload)
-npm run dev
+# 7. Criar credenciais de auto-login DEV (não commitar)
+cat > frontend/.env.development << EOF
+VITE_DEV_EMAIL=admin@americana.sp.gov.br
+VITE_DEV_PASSWORD=Oss@2026
+VITE_API_URL=http://localhost:5000
+EOF
+
+# 8. Iniciar o backend
+npm start
+# API em http://localhost:5000
+
+# 9. Em outro terminal, iniciar o frontend
+cd frontend && npm run dev
+# Frontend em http://localhost:3000
 ```
 
-Após iniciar:
-- **Frontend**: `http://localhost:3000`
-- **API**: `http://localhost:3001/api`
+> O frontend faz **auto-login automático** em DEV com as credenciais de `frontend/.env.development`, usando autenticação real contra `tb_usuarios`.
 
 ---
 
@@ -109,7 +121,7 @@ Copie `.env.example` para `.env` e ajuste os valores:
 ```dotenv
 # Servidor
 NODE_ENV=development
-PORT=3001
+PORT=5000
 
 # MySQL
 DB_HOST=localhost
@@ -134,74 +146,114 @@ REDIS_USE_PASSWORD=no
 REDIS_PASSWORD=
 ```
 
+**Frontend DEV** (`frontend/.env.development` — não commitar):
+
+```dotenv
+VITE_DEV_EMAIL=admin@americana.sp.gov.br
+VITE_DEV_PASSWORD=Oss@2026
+VITE_API_URL=http://localhost:5000
+```
+
 ---
 
 ## Comandos Disponíveis
 
+### Backend (raiz)
+
 ```bash
-# Desenvolvimento (backend + frontend simultâneos)
-npm run dev
-
-# Somente backend
-npm run dev:backend
-
-# Somente frontend
-npm run dev:frontend
-
-# Build de produção (frontend → dist, depois sobe o Express)
-npm run prod
-
-# Apenas build do frontend
-npm run build
-
-# Produção (Express serve API + frontend estático)
-npm start
-
-# Testes
-npm test
-
-# Banco de dados
-npm run db:migrate          # Aplica todas as migrações pendentes
-npm run db:migrate:undo     # Desfaz todas as migrações
+npm start                   # Servidor Express (porta 5000)
+npm test                    # Testes Jest
+npm run db:migrate          # Aplica migrações pendentes
+npm run db:migrate:undo     # Desfaz última migração
 npm run db:seed             # Popula dados iniciais
 npm run db:seed:undo        # Remove dados de seed
+```
+
+### Frontend (`cd frontend`)
+
+```bash
+npm run dev                 # Dev server Vite (porta 3000, proxy /api → :5000)
+npm run build               # Build produção (tsc + vite build com Rolldown)
+npm run preview             # Preview do build de produção
+npx tsc --noEmit            # Verificação TypeScript (zero erros obrigatório)
 ```
 
 ---
 
 ## API — Endpoints
 
+Base URL: `http://localhost:5000/api`
+
 ### Autenticação (`/api/auth`)
 
 | Método | Rota | Descrição | Acesso |
 |---|---|---|---|
-| `POST` | `/auth/register` | Cadastro de usuário | Público |
-| `POST` | `/auth/email-exists` | Verifica disponibilidade de e-mail | Público |
 | `POST` | `/auth/login` | Login — retorna access + refresh token | Público |
-| `POST` | `/auth/refresh-token` | Renova access token | Autenticado |
-| `POST` | `/auth/logout` | Encerra sessão (invalida token no Redis) | Autenticado |
+| `POST` | `/auth/register` | Cadastro de usuário | Público |
+| `POST` | `/auth/refresh-tokens` | Renova access token | Público |
+| `POST` | `/auth/logout` | Encerra sessão (invalida token) | Autenticado |
 | `PUT` | `/auth/change-password` | Altera senha | Autenticado |
 
-### Acompanhamento Mensal (`/api/acompanhamento-mensal`)
+**Body de login:**
+```json
+{ "email": "admin@americana.sp.gov.br", "password": "Oss@2026" }
+```
+
+**Resposta:**
+```json
+{
+  "data": { "usuario_id": "...", "nome": "...", "email": "...", "perfil": "admin" },
+  "tokens": { "access": { "token": "eyJ..." }, "refresh": { "token": "eyJ..." } }
+}
+```
+
+### Acompanhamentos / Entrada Mensal (`/api/acompanhamentos`)
 
 | Método | Rota | Descrição | Perfis |
 |---|---|---|---|
-| `GET` | `/` | Lista acompanhamentos | Todos |
-| `POST` | `/` | Registra valor realizado | Gestor_SMS, Admin, Contratadas |
-| `PUT` | `/:id/aprovar` | Aprova acompanhamento | Auditora, Admin |
-| `PUT` | `/:id/rejeitar` | Rejeita acompanhamento | Auditora, Admin |
-| `POST` | `/calcular-descontos?mes=YYYY-MM-01` | Calcula descontos do mês | Admin, Gestor_SMS |
-| `GET` | `/repasse?mes=YYYY-MM-01` | Repasse financeiro final | Admin, Gestor_SMS, Auditora, CMS |
+| `GET` | `/?unidadeId=&mesReferencia=YYYY-MM-01` | Lista acompanhamentos | Todos |
+| `POST` | `/` | Registra valor realizado | Gestor_SMS, Admin |
+| `PUT` | `/:id` | Atualiza acompanhamento | Gestor_SMS, Admin |
+| `DELETE` | `/:id` | Remove acompanhamento | Admin |
+
+### Metas (`/api/metas`)
+
+| Método | Rota | Descrição | Perfis |
+|---|---|---|---|
+| `GET` | `/` | Lista metas | Todos |
+| `POST` | `/` | Cria meta | Admin, Gestor_SMS |
+| `PUT` | `/:id` | Atualiza meta | Admin, Gestor_SMS |
+| `DELETE` | `/:id` | Remove meta | Admin |
 
 ### Indicadores (`/api/indicadores`)
 
 | Método | Rota | Descrição | Perfis |
 |---|---|---|---|
-| `GET` | `/` | Lista indicadores ativos | Todos |
+| `GET` | `/` | Lista indicadores | Todos |
 | `GET` | `/:id` | Detalhe de um indicador | Todos |
 | `POST` | `/` | Cria indicador | Admin |
 | `PUT` | `/:id` | Atualiza indicador | Admin |
 | `DELETE` | `/:id` | Desativa (soft-delete) | Admin |
+
+### OSS (`/api/oss`)
+
+| Método | Rota | Descrição | Perfis |
+|---|---|---|---|
+| `GET` | `/` | Lista OSS | Todos |
+| `GET` | `/:id` | Detalhe de OSS | Todos |
+| `POST` | `/` | Cria OSS | Admin |
+| `PUT` | `/:id` | Atualiza OSS | Admin |
+| `DELETE` | `/:id` | Remove OSS (soft-delete) | Admin |
+
+### Unidades de Saúde (`/api/unidades`)
+
+| Método | Rota | Descrição | Perfis |
+|---|---|---|---|
+| `GET` | `/?ativo=1` | Lista unidades | Todos |
+| `GET` | `/:id` | Detalhe de unidade | Todos |
+| `POST` | `/` | Cria unidade | Admin |
+| `PUT` | `/:id` | Atualiza unidade | Admin |
+| `DELETE` | `/:id` | Remove unidade | Admin |
 
 ### Contratos (`/api/contratos`)
 
@@ -211,8 +263,7 @@ npm run db:seed:undo        # Remove dados de seed
 | `GET` | `/:id` | Detalhe de um contrato | Todos |
 | `POST` | `/` | Cria contrato | Admin |
 | `PUT` | `/:id` | Atualiza contrato | Admin |
-| `POST` | `/:id/aditivos` | Adiciona aditivo contratual | Admin |
-| `POST` | `/:id/aditivos/:aditivoId/aplicar` | Aplica aditivo | Admin |
+| `DELETE` | `/:id` | Remove contrato | Admin |
 
 ### Descontos (`/api/descontos`)
 
@@ -223,30 +274,21 @@ npm run db:seed:undo        # Remove dados de seed
 | `GET` | `/repasse?mes=` | Repasse com breakdown de descontos | Admin, Gestor_SMS |
 | `PUT` | `/blocos/:id/auditar` | Audita desconto de bloco | Auditora, Admin |
 
-### Metas (`/api/metas`)
-
-| Método | Rota | Descrição | Perfis |
-|---|---|---|---|
-| `GET` | `/?indicador_id=&ano=` | Lista metas | Todos |
-| `POST` | `/` | Cria meta | Admin, Gestor_SMS |
-| `PUT` | `/:id` | Atualiza meta | Admin, Gestor_SMS |
-
 ---
 
 ## Controle de Acesso (RBAC)
 
-O sistema possui 8 perfis com diferentes permissões:
+O sistema possui 5 perfis de usuário:
 
 | Perfil | Descrição |
 |---|---|
 | `admin` | Acesso total ao sistema |
 | `gestor_sms` | Gestão de contratos e indicadores da SMS |
 | `auditora` | Aprovação e auditoria de acompanhamentos |
-| `conselheiro_cms` | Visualização para o Conselho Municipal de Saúde |
-| `contratada_scmc` | Entrada de dados pela OSS SCMC |
-| `contratada_indsh` | Entrada de dados pela OSS INDSH |
-| `central_regulacao` | Acesso à central de regulação |
-| `visualizador` | Somente leitura |
+| `cms` | Visualização para o Conselho Municipal de Saúde |
+| `contratada` | Entrada de dados pela OSS contratada |
+
+O backend usa `authorize([...perfis])` middleware e o frontend usa `ProtectedRoute` com `allowedPerfis`.
 
 ---
 
@@ -257,35 +299,39 @@ O backend segue a arquitetura em camadas **Route → Controller → Service → 
 ```
 oss/
 ├── src/
-│   ├── config/          # Validação de env vars, conexão DB, Passport.js, constantes
-│   ├── controllers/     # Recebe requisições HTTP, chama services, retorna resposta
-│   ├── dao/             # Data Access Objects — queries encapsuladas por entidade
+│   ├── config/              # JWT, DB, Passport.js (estratégia JWT via tb_usuarios)
+│   ├── controllers/         # Auth, Acompanhamentos, Meta, Indicador, Oss, Unidade, Contrato
+│   ├── dao/                 # Data Access Objects — SuperDao base + especializados
 │   ├── db/
-│   │   ├── migrations/  # 25+ migrações Sequelize (tabelas, views, procedures, triggers)
-│   │   └── seeders/     # Dados iniciais reais de Americana/SP
-│   ├── helper/          # ApiError, EmailHelper, RedisHelper, responseHandler
-│   ├── middlewares/     # Auth JWT, RBAC, auditoria LGPD
-│   ├── models/          # 26 modelos Sequelize (class-based, com associate)
-│   ├── route/           # Rotas Express com middlewares de autenticação e autorização
-│   ├── service/         # Lógica de negócio (cálculo de descontos, repasses, validações)
-│   ├── validator/       # Schemas Joi para validação de entrada
-│   ├── app.js           # Express app (middlewares, rotas, error handlers)
-│   ├── cronJobs.js      # Tarefas agendadas (node-cron)
-│   └── index.js         # Ponto de entrada — HTTP server + Socket.io
+│   │   ├── migrations/      # 27+ migrações Sequelize
+│   │   └── seeders/         # Dados iniciais reais de Americana/SP
+│   ├── helper/              # ApiError, EmailHelper, RedisHelper, responseHandler
+│   ├── middlewares/         # auth() JWT, authorize() RBAC, auditoria LGPD
+│   ├── models/              # 22 modelos Sequelize (Usuario, Oss, Contrato, Indicador...)
+│   ├── route/               # Rotas Express
+│   ├── service/             # AuthService, TokenService, AcompanhamentosService, MetaService...
+│   ├── validator/           # Schemas Joi (Acompanhamentos, Meta, Indicador)
+│   └── app.js               # Express app
 ├── frontend/
 │   └── src/
-│       ├── components/  # Componentes reutilizáveis (UI + layout)
-│       ├── pages/       # Login, Dashboard, EntradaMensal, Aprovação, Relatórios, Perfil
-│       ├── contexts/    # AuthContext (JWT + RBAC no cliente)
-│       ├── hooks/       # useApi (fetch wrapper tipado)
-│       ├── lib/         # Formatadores (moeda, percentual, datas, status)
-│       ├── types/       # 12 interfaces TypeScript do domínio
-│       └── data/        # Mock data para desenvolvimento
-├── docs/                # PRD_v2, ARQUITETURA_v2, banco_v2, erd_v2
-├── specs/               # Specs OpenAPI e testes de integração
+│       ├── components/      # SidebarMenu, Header, CardMetrica, TabelaIndicadores...
+│       ├── contexts/        # AuthContext (login real JWT, auto-login DEV, RBAC, dark mode)
+│       ├── hooks/           # useApi (fetch wrapper com ApiError)
+│       ├── lib/             # formatters (moeda, percentual, datas, status)
+│       ├── pages/
+│       │   ├── Oss/         # CRUD Organizações Sociais
+│       │   ├── Contratos/   # CRUD Contratos de Gestão
+│       │   ├── Unidades/    # CRUD Unidades de Saúde
+│       │   ├── Indicadores/ # CRUD Indicadores (Hub + List)
+│       │   ├── Metas/       # CRUD Metas (Hub + List)
+│       │   └── EntradaMensal/ # Acompanhamento mensal (Hub + List + Modal)
+│       ├── types/           # 12 interfaces TypeScript do domínio
+│       └── data/            # Mock data (fallback DEV em catches de API)
+├── docs/                    # PRD_v2, ARQUITETURA_v2, banco_v2, erd_v2
+├── specs/                   # Testes Jest (acompanhamentos, metas) + specs OpenAPI
 ├── Dockerfile
 ├── docker-compose.yml
-├── ecosystem.config.js  # PM2 config
+├── ecosystem.config.js      # PM2 config
 └── .env.example
 ```
 
@@ -295,22 +341,21 @@ oss/
 
 O banco utiliza MySQL 8+ com as seguintes convenções:
 - UUIDs como PKs (`DEFAULT (UUID())`)
-- Colunas geradas (`GENERATED ALWAYS AS STORED`)
-- Soft-delete (campo `ativo` / `deleted_at`)
+- Soft-delete (campo `ativo`)
 - Tabelas de histórico imutáveis (append-only)
 
 **Principais entidades:**
 
 | Grupo | Modelos |
 |---|---|
+| Auth | `Usuario` (tb_usuarios), `Token` |
 | Contratual | `Oss`, `Contrato`, `Unidade`, `Aditivo` |
-| Indicadores | `BlocoProducao`, `Indicador`, `Meta` |
-| Acompanhamento | `AcompanhamentoMensal`, `NotaExplicativa` |
+| Indicadores | `BlocoProducao`, `Indicador`, `Meta` (com `meta_tipo`) |
+| Acompanhamento | `AcompanhamentoMensal` (com snapshot fields), `NotaExplicativa` |
 | Financeiro | `RepasseMensal`, `ExecucaoFinanceira`, `Rubrica`, `DescontoBloco`, `DescontoIndicador` |
 | Consolidação | `Consolidacao`, `ConsolidacaoItem` |
 | Regulatório | `DocumentoRegulatorio`, `Comissao` |
 | Auditoria | `AuditoriaLog`, `HistoricoContrato`, `HistoricoIndicador`, `HistoricoBloco` |
-| Auth | `Usuario`, `Token` |
 
 ---
 
@@ -330,7 +375,7 @@ Três tarefas agendadas rodam automaticamente (`src/cronJobs.js`):
 
 ```bash
 # Build do frontend
-npm run build
+cd frontend && npm run build && cd ..
 
 # Iniciar com PM2
 pm2 start ecosystem.config.js
@@ -348,11 +393,17 @@ pm2 startup       # Configura auto-start no boot
 ## Testes
 
 ```bash
-# Todos os testes (Mocha + Chai + Sinon)
+# Todos os testes (Jest)
 npm test
 
 # Watch mode
 npm test -- --watch
+
+# Cobertura
+npm test -- --coverage
+
+# TypeScript check (frontend — zero erros obrigatório)
+cd frontend && npx tsc --noEmit
 ```
 
 Os testes ficam em `specs/` organizados por feature (`*.spec.js`).
