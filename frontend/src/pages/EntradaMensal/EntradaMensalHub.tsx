@@ -70,7 +70,11 @@ export default function EntradaMensalHub() {
     }
   }, [])
 
-  useEffect(() => { carregarUnidades() }, [carregarUnidades])
+  useEffect(() => {
+    const signal = { aborted: false }
+    carregarUnidades()
+    return () => { signal.aborted = true }
+  }, [carregarUnidades])
 
   async function carregarProgresso(unidadeId: string, mesReferencia: string) {
     setProgressos(prev => ({ ...prev, [unidadeId]: null }))

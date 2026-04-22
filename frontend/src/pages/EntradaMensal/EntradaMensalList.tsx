@@ -99,25 +99,31 @@ export default function EntradaMensalList() {
 
   const mesInput = mes.slice(0, 7)
 
-  const carregar = useCallback(async () => {
+  const carregar = useCallback(async (signal: { aborted: boolean }) => {
     setLoading(true)
     try {
       const raw = await api.get(`/acompanhamentos?unidadeId=${unidadeId}&mesReferencia=${mes}`)
-      setItens(unwrap(raw) as AcompanhamentoRecord[])
+      if (!signal.aborted) setItens(unwrap(raw) as AcompanhamentoRecord[])
     } catch {
-      setItens(mockAcompanhamentos)
+      if (!signal.aborted) setItens(mockAcompanhamentos)
     } finally {
-      setLoading(false)
+      if (!signal.aborted) setLoading(false)
     }
 
     try {
       const raw = await api.get(`/unidades/${unidadeId}`)
-      const u = unwrap(raw) as { nome: string }
-      setNomeUnidade(u.nome)
+      if (!signal.aborted) {
+        const u = unwrap(raw) as { nome: string }
+        setNomeUnidade(u.nome)
+      }
     } catch { /* ignora */ }
   }, [unidadeId, mes])
 
-  useEffect(() => { carregar() }, [carregar])
+  useEffect(() => {
+    const signal = { aborted: false }
+    carregar(signal)
+    return () => { signal.aborted = true }
+  }, [carregar])
 
   function handleMesChange(e: React.ChangeEvent<HTMLInputElement>) {
     const [a, m] = e.target.value.split('-')
@@ -230,18 +236,19 @@ export default function EntradaMensalList() {
         <p className="py-12 text-center text-sm text-text-secondary">Nenhum indicador encontrado.</p>
       ) : (
         <div className="rounded-xl border border-border overflow-hidden">
-          {/* Header da tabela */}
-          <div className="flex items-center px-4 py-2.5 bg-surface-alt border-b border-border text-xs font-medium text-text-secondary gap-2">
-            <div className="flex-[2]"><SortBtn c="nome" label="Indicador" /></div>
-            <div className="w-[70px] shrink-0">Tipo</div>
-            <div className="w-[90px] shrink-0 text-right"><SortBtn c="meta" label="Meta" /></div>
-            <div className="w-[90px] shrink-0 text-right"><SortBtn c="realizado" label="Realizado" /></div>
-            <div className="w-[70px] shrink-0 text-right"><SortBtn c="percentual" label="%" /></div>
-            <div className="w-[80px] shrink-0"><SortBtn c="status" label="Status" /></div>
-            <div className="w-[72px] shrink-0" />
-          </div>
           <div className="overflow-x-auto">
             <div style={{ minWidth: 640 }}>
+              {/* Header da tabela */}
+              <div className="flex items-center px-4 py-2.5 bg-surface-alt border-b border-border text-xs font-medium text-text-secondary gap-2">
+                <div className="flex-[2]"><SortBtn c="nome" label="Indicador" /></div>
+                <div className="w-[70px] shrink-0">Tipo</div>
+                <div className="w-[90px] shrink-0 text-right"><SortBtn c="meta" label="Meta" /></div>
+                <div className="w-[90px] shrink-0 text-right"><SortBtn c="realizado" label="Realizado" /></div>
+                <div className="w-[70px] shrink-0 text-right"><SortBtn c="percentual" label="%" /></div>
+                <div className="w-[80px] shrink-0"><SortBtn c="status" label="Status" /></div>
+                <div className="w-[72px] shrink-0" />
+              </div>
+              {/* Body */}
               <List
                 rowComponent={Row}
                 rowCount={filtrados.length}
