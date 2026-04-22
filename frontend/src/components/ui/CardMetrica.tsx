@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { Doughnut } from 'react-chartjs-2'
 import { Chart as ChartJS, ArcElement, Tooltip } from 'chart.js'
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react'
@@ -7,6 +8,15 @@ ChartJS.register(ArcElement, Tooltip)
 
 const getCssVar = (name: string) =>
   getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+
+// Static map: status → CSS variable name (string, not the resolved value)
+const STATUS_CSS_VAR: Record<StatusCumprimento, string> = {
+  cumprido:      '--status-ok',
+  parcial:       '--status-warn',
+  nao_cumprido:  '--status-bad',
+  nao_aplicavel: '--sem-slate-500',
+  aguardando:    '--sem-slate-500',
+}
 
 interface Props {
   titulo: string
@@ -27,16 +37,9 @@ export default function CardMetrica({
   icone,
   variacao,
 }: Props) {
-  const statusColorMap: Record<StatusCumprimento, string> = {
-    cumprido:      getCssVar('--status-ok'),
-    parcial:       getCssVar('--status-warn'),
-    nao_cumprido:  getCssVar('--status-bad'),
-    nao_aplicavel: getCssVar('--sem-slate-500'),
-    aguardando:    getCssVar('--sem-slate-500'),
-  }
-
-  const cor = statusColorMap[status]
-  const trackColor = getCssVar('--n-15')
+  // Memoized: getComputedStyle is called only when `status` changes, not on every render
+  const cor = useMemo(() => getCssVar(STATUS_CSS_VAR[status]), [status])
+  const trackColor = useMemo(() => getCssVar('--n-15'), [])
   const restante = percentual != null ? Math.max(0, 100 - Math.min(percentual, 100)) : 100
 
   const chartData = {

@@ -36,12 +36,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { user: null, token: null, isAuthenticated: false }
   })
 
-  const [darkMode, setDarkMode] = useState(() => {
-    const saved = localStorage.getItem('oss_dark_mode') === 'true'
-    if (saved) document.documentElement.setAttribute('data-theme', 'dark')
-    return saved
-  })
+  const [darkMode, setDarkMode] = useState(
+    () => localStorage.getItem('oss_dark_mode') === 'true',
+  )
 
+  // Single source of truth for the data-theme attribute and localStorage sync.
+  // Keep DOM mutations out of the useState initializer (runs before commit, twice in StrictMode).
   useEffect(() => {
     if (darkMode) {
       document.documentElement.setAttribute('data-theme', 'dark')
@@ -81,15 +81,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [auth.user],
   )
 
+  // DOM attribute is managed exclusively by the useEffect above; no direct writes here.
   const toggleDarkMode = useCallback(() => {
-    const next = !darkMode
-    if (next) {
-      document.documentElement.setAttribute('data-theme', 'dark')
-    } else {
-      document.documentElement.removeAttribute('data-theme')
-    }
-    setDarkMode(next)
-  }, [darkMode])
+    setDarkMode(prev => !prev)
+  }, [])
 
   return (
     <AuthContext.Provider value={{ ...auth, login, logout, hasPermission, darkMode, toggleDarkMode }}>
