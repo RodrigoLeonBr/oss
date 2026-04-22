@@ -11,10 +11,10 @@ import type { ContratoRecord } from './types'
 import {
   formatarMoeda, formatarData, formatarPercentual,
   STATUS_LABELS, STATUS_BADGE, STATUS_DOT,
-  unwrap, mockContratos,
+  unwrap,
 } from './types'
 import type { OssRecord } from '../Oss/types'
-import { mockOssRecords, formatarCNPJ } from '../Oss/types'
+import { formatarCNPJ } from '../Oss/types'
 import ContratosFormModal from './ContratosFormModal'
 import ContratosDeleteModal from './ContratosDeleteModal'
 
@@ -199,12 +199,14 @@ export default function ContratosList() {
     try {
       const res = await get<ContratoRecord[] | { data: ContratoRecord[] }>('/contratos')
       setLista(unwrap(res))
-    } catch {
-      if (import.meta.env.DEV) setLista(mockContratos)
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : 'Não foi possível carregar os contratos.'
+      setLista([])
+      addToast('erro', msg)
     } finally {
       setLoading(false)
     }
-  }, [get])
+  }, [get, addToast])
 
   // ── Fetch OSS (dropdown de filtro e formulário) ────────────────────────────
   const fetchOss = useCallback(async () => {
@@ -212,12 +214,14 @@ export default function ContratosList() {
     try {
       const res = await get<OssRecord[] | { data: OssRecord[] }>('/oss')
       setOssList(unwrap(res))
-    } catch {
-      if (import.meta.env.DEV) setOssList(mockOssRecords)
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : 'Não foi possível carregar as OSS.'
+      setOssList([])
+      addToast('erro', msg)
     } finally {
       setOssLoading(false)
     }
-  }, [get])
+  }, [get, addToast])
 
   useEffect(() => {
     fetchLista()
@@ -292,15 +296,14 @@ export default function ContratosList() {
       setDeleteModal({ open: false })
       addToast('ok', `Contrato ${contrato.numeroContrato} excluído com sucesso.`)
     } catch (err) {
-      const status   = err instanceof ApiError ? err.status : 0
-      const rawMsg   = err instanceof Error   ? err.message : ''
+      const status  = err instanceof ApiError ? err.status : 0
+      const rawMsg  = err instanceof Error ? err.message : ''
       const isNetErr = rawMsg.includes('Failed to fetch') || rawMsg.includes('NetworkError')
 
-      if (import.meta.env.DEV && (status === 401 || status === 404 || isNetErr)) {
-        // DEV mock: endpoint ausente/não autorizado — simula exclusão local
-        setLista(prev => prev.filter(c => c.id !== contrato.id))
-        setDeleteModal({ open: false })
-        addToast('ok', `Contrato ${contrato.numeroContrato} excluído com sucesso.`)
+      if (status === 409) {
+        addToast('erro', rawMsg || 'Não é possível excluir este contrato.')
+      } else if (isNetErr) {
+        addToast('erro', 'Não foi possível conectar ao servidor.')
       } else {
         addToast('erro', `Erro ao excluir: ${rawMsg || 'tente novamente.'}`)
       }

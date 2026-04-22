@@ -66,6 +66,16 @@ class ContratoController {
             return next(e);
         }
     };
+
+    excluir = async (req, res, next) => {
+        try {
+            await ContratoService.excluir(req.params.id);
+            return res.status(httpStatus.NO_CONTENT).send();
+        } catch (e) {
+            logger.error(e);
+            return next(e);
+        }
+    };
 }
 
 module.exports = ContratoController;

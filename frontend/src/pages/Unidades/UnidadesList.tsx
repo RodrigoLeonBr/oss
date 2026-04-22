@@ -10,12 +10,11 @@ import { useApi, ApiError } from '../../hooks/useApi'
 import { useAuth } from '../../contexts/AuthContext'
 import type { UnidadeRecord } from './types'
 import {
-  TIPO_LABELS, TIPO_BADGE,
+  TIPO_LABELS,
   STATUS_LABELS, STATUS_BADGE, STATUS_DOT,
-  formatarCNPJUnidade, unwrap, mockUnidades,
+  formatarCnesOuDoc, tipoLabelSafe, tipoBadgeSafe, unwrap,
 } from './types'
 import type { ContratoRecord } from '../Contratos/types'
-import { mockContratos } from '../Contratos/types'
 import UnidadesFormModal from './UnidadesFormModal'
 import UnidadesDeleteModal from './UnidadesDeleteModal'
 
@@ -111,17 +110,17 @@ function UnidadeRow({
         <p className="truncate text-xs text-text-secondary" title={u.endereco}>{u.endereco}</p>
       </div>
 
-      {/* CNPJ */}
+      {/* CNES / doc */}
       <div role="cell" className="min-w-0">
-        <p className="truncate font-mono text-xs text-text-secondary">
-          {formatarCNPJUnidade(u.cnpj)}
+        <p className="truncate font-mono text-xs text-text-secondary" title={u.cnes ?? undefined}>
+          {formatarCnesOuDoc(u.cnes)}
         </p>
       </div>
 
       {/* Tipo */}
       <div role="cell">
-        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${TIPO_BADGE[u.tipo]}`}>
-          {TIPO_LABELS[u.tipo]}
+        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${tipoBadgeSafe(u.tipo)}`}>
+          {tipoLabelSafe(u.tipo)}
         </span>
       </div>
 
@@ -227,12 +226,18 @@ export default function UnidadesList() {
     try {
       const res = await get<UnidadeRecord[] | { data: UnidadeRecord[] }>('/unidades')
       setLista(unwrap(res))
-    } catch {
-      if (import.meta.env.DEV) setLista(mockUnidades)
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : 'Não foi possível carregar as unidades.'
+      setLista([])
+      if (err instanceof ApiError && err.status === 401) {
+        addToast('erro', 'Sessão expirada ou não autenticado. Faça login novamente.')
+      } else {
+        addToast('erro', msg)
+      }
     } finally {
       setLoading(false)
     }
-  }, [get])
+  }, [get, addToast])
 
   // ── Fetch contratos (dropdown de filtro e formulário) ──────────────────────
   const fetchContratos = useCallback(async () => {
@@ -240,12 +245,18 @@ export default function UnidadesList() {
     try {
       const res = await get<ContratoRecord[] | { data: ContratoRecord[] }>('/contratos')
       setContratosList(unwrap(res))
-    } catch {
-      if (import.meta.env.DEV) setContratosList(mockContratos)
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : 'Não foi possível carregar os contratos.'
+      setContratosList([])
+      if (err instanceof ApiError && err.status === 401) {
+        addToast('erro', 'Sessão expirada ou não autenticado. Faça login novamente.')
+      } else {
+        addToast('erro', msg)
+      }
     } finally {
       setContratosLoading(false)
     }
-  }, [get])
+  }, [get, addToast])
 
   useEffect(() => {
     fetchLista()
@@ -552,7 +563,7 @@ export default function UnidadesList() {
                 <div role="columnheader"><SortBtn col="nome">Nome</SortBtn></div>
                 <div role="columnheader"><SortBtn col="contratoNumero">Contrato / OSS</SortBtn></div>
                 <div role="columnheader" className="font-medium text-white/70">Endereço</div>
-                <div role="columnheader" className="font-medium text-white/70">CNPJ</div>
+                <div role="columnheader" className="font-medium text-white/70">CNES / doc.</div>
                 <div role="columnheader"><SortBtn col="tipo">Tipo</SortBtn></div>
                 <div role="columnheader" className="text-right"><SortBtn col="capacidade">Cap.</SortBtn></div>
                 <div role="columnheader"><SortBtn col="status">Status</SortBtn></div>

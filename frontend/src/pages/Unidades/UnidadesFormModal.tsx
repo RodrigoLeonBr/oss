@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { X, Hospital, Loader2, AlertCircle } from 'lucide-react'
 import type { UnidadeRecord, UnidadeFormData, UnidadeFormErrors } from './types'
-import { unwrap, mascaraCNPJUnidade, TIPO_LABELS } from './types'
+import { unwrap, mascarCnesOuDoc, TIPO_LABELS, unidadeToFormData } from './types'
 import type { ContratoRecord } from '../Contratos/types'
 import { useApi, ApiError } from '../../hooks/useApi'
 
@@ -56,36 +56,20 @@ function inputCls(hasError: boolean) {
   ].join(' ')
 }
 
-// ── DEV mock: simula API quando o backend ainda não existe ────────────────────
-function devMockSave(
-  payload: Omit<UnidadeRecord, 'id' | 'createdAt' | 'updatedAt'>,
-  contratosList: ContratoRecord[],
-  existingId?: string,
-): UnidadeRecord {
-  const contrato = contratosList.find(c => c.id === payload.contratoId)
-  return {
-    ...payload,
-    id: existingId ?? crypto.randomUUID(),
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    contrato: contrato
-      ? {
-          id: contrato.id,
-          numeroContrato: contrato.numeroContrato,
-          oss: contrato.oss ? { id: contrato.oss.id, nome: contrato.oss.nome } : undefined,
-        }
-      : undefined,
-  }
-}
-
 const EMPTY: UnidadeFormData = {
   contratoId: '',
-  nome:        '',
-  endereco:    '',
-  cnpj:        '',
-  tipo:        'ambulatorio',
-  capacidade:  '',
-  status:      'ativa',
+  nome: '',
+  sigla: '',
+  endereco: '',
+  cnes: '',
+  tipo: 'ambulatorio',
+  porte: '',
+  capacidade: '',
+  especialidades: '',
+  responsavelTecnico: '',
+  valorMensal: '',
+  percentualPeso: '',
+  status: 'ativa',
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -101,22 +85,11 @@ export default function UnidadesFormModal({
   const isEdit = Boolean(unidade)
 
   const [form, setForm] = useState<UnidadeFormData>(() =>
-    unidade
-      ? {
-          contratoId: unidade.contratoId,
-          nome:       unidade.nome,
-          endereco:   unidade.endereco,
-          cnpj:       unidade.cnpj ?? '',
-          tipo:       unidade.tipo,
-          capacidade: String(unidade.capacidade),
-          status:     unidade.status,
-        }
-      : EMPTY,
+    unidade ? unidadeToFormData(unidade) : EMPTY,
   )
   const [erros, setErros]                   = useState<UnidadeFormErrors>({})
   const [loading, setLoading]               = useState(false)
   const [apiError, setApiError]             = useState<string | null>(null)
-  const [devMockWarning, setDevMockWarning] = useState(false)
 
   const primeiroRef = useRef<HTMLSelectElement>(null)
 
@@ -155,14 +128,25 @@ export default function UnidadesFormModal({
     if (!form.endereco.trim()) {
       e.endereco = 'Endereço é obrigatório'
     }
+    if (form.sigla.trim().length > 20) {
+      e.sigla = 'Máximo 20 caracteres'
+    }
     if (!form.tipo) {
       e.tipo = 'Selecione o tipo de unidade'
     }
     const cap = parseInt(form.capacidade, 10)
     if (!form.capacidade.trim()) {
-      e.capacidade = 'Capacidade é obrigatória'
+      e.capacidade = 'Capacidade (leitos/vagas) é obrigatória'
     } else if (isNaN(cap) || cap <= 0) {
-      e.capacidade = 'Capacidade deve ser maior que zero'
+      e.capacidade = 'Informe um valor inteiro maior que zero'
+    }
+    if (form.valorMensal.trim()) {
+      const v = parseFloat(form.valorMensal.replace(/[^\d.,]/g, '').replace(',', '.'))
+      if (isNaN(v) || v < 0) e.valorMensal = 'Valor mensal inválido'
+    }
+    if (form.percentualPeso.trim()) {
+      const p = parseFloat(form.percentualPeso.replace(/[^\d.,]/g, '').replace(',', '.'))
+      if (isNaN(p) || p < 0 || p > 100) e.percentualPeso = 'Use um percentual entre 0 e 100'
     }
 
     setErros(e)
@@ -174,54 +158,49 @@ export default function UnidadesFormModal({
     e.preventDefault()
     if (!validar()) return
 
-    const payload = {
+    const cnesDigits = form.cnes.replace(/\D/g, '')
+
+    const payload: Record<string, unknown> = {
       contratoId: form.contratoId,
-      nome:       form.nome.trim(),
-      endereco:   form.endereco.trim(),
-      cnpj:       form.cnpj.trim() || null,
-      tipo:       form.tipo,
+      nome: form.nome.trim(),
+      endereco: form.endereco.trim(),
+      tipo: form.tipo,
       capacidade: parseInt(form.capacidade, 10),
-      status:     form.status,
+      status: form.status,
+    }
+    if (form.sigla.trim()) payload.sigla = form.sigla.trim().slice(0, 20)
+    if (cnesDigits) payload.cnes = cnesDigits
+    if (form.porte.trim()) payload.porte = form.porte.trim()
+    if (form.especialidades.trim()) payload.especialidades = form.especialidades.trim()
+    if (form.responsavelTecnico.trim()) payload.responsavelTecnico = form.responsavelTecnico.trim()
+    if (form.valorMensal.trim()) {
+      const v = parseFloat(form.valorMensal.replace(/[^\d.,]/g, '').replace(',', '.'))
+      if (!isNaN(v) && v >= 0) payload.valorMensalUnidade = v
+    }
+    if (form.percentualPeso.trim()) {
+      const p = parseFloat(form.percentualPeso.replace(/[^\d.,]/g, '').replace(',', '.'))
+      if (!isNaN(p) && p >= 0 && p <= 100) payload.percentualPeso = p
     }
 
     setLoading(true)
     setApiError(null)
-    setDevMockWarning(false)
     try {
       if (isEdit && unidade) {
-        const res = await put<UnidadeRecord | { data: UnidadeRecord }>(
-          `/unidades/${unidade.id}`,
-          payload,
-        )
+        const res = await put<UnidadeRecord | { data: UnidadeRecord }>(`/unidades/${unidade.id}`, payload)
         onSalvo(unwrap(res))
       } else {
-        const res = await post<UnidadeRecord | { data: UnidadeRecord }>(
-          '/unidades',
-          payload,
-        )
+        const res = await post<UnidadeRecord | { data: UnidadeRecord }>('/unidades', payload)
         onSalvo(unwrap(res))
       }
     } catch (err) {
       const status  = err instanceof ApiError ? err.status : 0
       const rawMsg  = err instanceof Error   ? err.message : ''
-
-      // ── DEV: endpoint ausente ou não autorizado → simula localmente ─────────
-      const isNotFound   = status === 404 || status === 401
       const isNetworkErr = rawMsg.includes('Failed to fetch') || rawMsg.includes('NetworkError')
-      if (import.meta.env.DEV && (isNotFound || isNetworkErr)) {
-        setDevMockWarning(true)
-        onSalvo(
-          devMockSave(
-            payload as Omit<UnidadeRecord, 'id' | 'createdAt' | 'updatedAt'>,
-            contratosList,
-            isEdit ? unidade?.id : undefined,
-          ),
-        )
-        return
-      }
 
       // ── Mensagens em português ──────────────────────────────────────────────
-      if (status === 409 || rawMsg.toLowerCase().includes('unique') || rawMsg.toLowerCase().includes('nome')) {
+      if (status === 401) {
+        setApiError('Sessão inválida ou expirada. Saia e entre novamente (login) e tente de novo.')
+      } else if (status === 409 || rawMsg.toLowerCase().includes('unique') || rawMsg.toLowerCase().includes('nome')) {
         setErros(prev => ({ ...prev, nome: 'Já existe uma unidade com este nome neste contrato' }))
       } else if (status === 404) {
         setApiError('Unidade não encontrada. Atualize a página e tente novamente.')
@@ -254,7 +233,7 @@ export default function UnidadesFormModal({
       aria-labelledby="unidade-modal-title"
     >
       <div
-        className="w-full max-w-xl overflow-hidden rounded-2xl bg-surface shadow-2xl border border-border-subtle"
+        className="w-full max-w-2xl overflow-hidden rounded-2xl bg-surface shadow-2xl border border-border-subtle"
         onClick={e => e.stopPropagation()}
       >
         {/* ── Header ── */}
@@ -286,21 +265,6 @@ export default function UnidadesFormModal({
         <form onSubmit={handleSubmit} noValidate>
           <div className="max-h-[70vh] overflow-y-auto px-6 py-5">
             <div className="space-y-4">
-
-              {/* Banner DEV */}
-              {devMockWarning && (
-                <div
-                  role="status"
-                  className="flex items-start gap-2 rounded-lg border border-amber-400/40 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-900/20 dark:text-amber-300"
-                >
-                  <AlertCircle size={16} className="mt-0.5 shrink-0" />
-                  <span>
-                    <strong>Modo DEV:</strong> o endpoint ainda não existe no backend.
-                    Os dados foram salvos <em>localmente</em> apenas para testes —
-                    nada foi persistido no banco de dados.
-                  </span>
-                </div>
-              )}
 
               {/* Banner erro API */}
               {apiError && (
@@ -337,25 +301,47 @@ export default function UnidadesFormModal({
                 </select>
               </Field>
 
-              {/* Nome */}
-              <Field
-                id="unidade-nome"
-                label="Nome da Unidade"
-                required
-                error={erros.nome}
-                hint="Ex: UPA 24h Centro, Hospital Municipal de Americana"
-              >
-                <input
-                  id="unidade-nome"
-                  type="text"
-                  value={form.nome}
-                  onChange={e => setField('nome', e.target.value)}
-                  placeholder="Ex: UPA 24h Centro"
-                  aria-describedby={erros.nome ? 'unidade-nome-error' : undefined}
-                  className={inputCls(!!erros.nome)}
-                  autoComplete="off"
-                />
-              </Field>
+              {/* Nome + Sigla */}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div className="sm:col-span-2">
+                  <Field
+                    id="unidade-nome"
+                    label="Nome da Unidade"
+                    required
+                    error={erros.nome}
+                    hint="Ex: UPA 24h Centro, Hospital Municipal de Americana"
+                  >
+                    <input
+                      id="unidade-nome"
+                      type="text"
+                      value={form.nome}
+                      onChange={e => setField('nome', e.target.value)}
+                      placeholder="Ex: UPA 24h Centro"
+                      aria-describedby={erros.nome ? 'unidade-nome-error' : undefined}
+                      className={inputCls(!!erros.nome)}
+                      autoComplete="off"
+                    />
+                  </Field>
+                </div>
+                <Field
+                  id="unidade-sigla"
+                  label="Sigla"
+                  error={erros.sigla}
+                  hint="Até 20 caracteres. Vazio = gerada no servidor"
+                >
+                  <input
+                    id="unidade-sigla"
+                    type="text"
+                    value={form.sigla}
+                    onChange={e => setField('sigla', e.target.value.slice(0, 20))}
+                    maxLength={20}
+                    placeholder="Ex: UPA-CTR"
+                    aria-describedby={erros.sigla ? 'unidade-sigla-error' : undefined}
+                    className={inputCls(!!erros.sigla)}
+                    autoComplete="off"
+                  />
+                </Field>
+              </div>
 
               {/* Endereço */}
               <Field id="unidade-endereco" label="Endereço" required error={erros.endereco}>
@@ -370,29 +356,29 @@ export default function UnidadesFormModal({
                 />
               </Field>
 
-              {/* CNPJ */}
+              {/* CNES / CNPJ (coluna cnes) */}
               <Field
-                id="unidade-cnpj"
-                label="CNPJ"
-                error={erros.cnpj}
-                hint="Opcional — formato: 00.000.000/0000-00"
+                id="unidade-cnes"
+                label="CNES (7) ou CNPJ (14 dígitos)"
+                error={erros.cnes}
+                hint="Opcional — identificador no cadastro do Ministério da Saúde (CNES) ou CNPJ"
               >
                 <input
-                  id="unidade-cnpj"
+                  id="unidade-cnes"
                   type="text"
                   inputMode="numeric"
-                  value={form.cnpj}
-                  onChange={e => setField('cnpj', mascaraCNPJUnidade(e.target.value))}
-                  placeholder="00.000.000/0000-00"
+                  value={form.cnes}
+                  onChange={e => setField('cnes', mascarCnesOuDoc(e.target.value))}
+                  placeholder="1234567 ou 00.000.000/0000-00"
                   maxLength={18}
-                  aria-describedby={erros.cnpj ? 'unidade-cnpj-error' : undefined}
-                  className={inputCls(!!erros.cnpj)}
+                  aria-describedby={erros.cnes ? 'unidade-cnes-error' : undefined}
+                  className={inputCls(!!erros.cnes)}
                   autoComplete="off"
                 />
               </Field>
 
-              {/* Tipo + Capacidade */}
-              <div className="grid grid-cols-2 gap-4">
+              {/* Tipo + Porte + Capacidade */}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <Field id="unidade-tipo" label="Tipo" required error={erros.tipo}>
                   <select
                     id="unidade-tipo"
@@ -406,10 +392,26 @@ export default function UnidadesFormModal({
                     ))}
                   </select>
                 </Field>
-
+                <Field
+                  id="unidade-porte"
+                  label="Porte (classificação)"
+                  error={erros.porte}
+                  hint="Opcional — I, II, III, etc."
+                >
+                  <input
+                    id="unidade-porte"
+                    type="text"
+                    value={form.porte}
+                    onChange={e => setField('porte', e.target.value)}
+                    placeholder="Ex: III"
+                    maxLength={100}
+                    className={inputCls(!!erros.porte)}
+                    autoComplete="off"
+                  />
+                </Field>
                 <Field
                   id="unidade-capacidade"
-                  label="Capacidade (leitos/vagas)"
+                  label="Cap. leitos/vagas"
                   required
                   error={erros.capacidade}
                 >
@@ -423,6 +425,78 @@ export default function UnidadesFormModal({
                     placeholder="Ex: 120"
                     aria-describedby={erros.capacidade ? 'unidade-capacidade-error' : undefined}
                     className={inputCls(!!erros.capacidade)}
+                  />
+                </Field>
+              </div>
+
+              <Field
+                id="unidade-esp"
+                label="Especialidades"
+                error={erros.especialidades}
+                hint="Opcional — separe com vírgulas (ex.: clínica médica, pediatria)"
+              >
+                <input
+                  id="unidade-esp"
+                  type="text"
+                  value={form.especialidades}
+                  onChange={e => setField('especialidades', e.target.value)}
+                  placeholder="Ex.: clínica médica, pediatria"
+                  className={inputCls(!!erros.especialidades)}
+                  autoComplete="off"
+                />
+              </Field>
+
+              <Field
+                id="unidade-rt"
+                label="Responsável técnico"
+                error={erros.responsavelTecnico}
+                hint="Opcional"
+              >
+                <input
+                  id="unidade-rt"
+                  type="text"
+                  value={form.responsavelTecnico}
+                  onChange={e => setField('responsavelTecnico', e.target.value)}
+                  placeholder="Nome completo"
+                  maxLength={200}
+                  className={inputCls(!!erros.responsavelTecnico)}
+                  autoComplete="off"
+                />
+              </Field>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Field
+                  id="unidade-vmu"
+                  label="Valor mensal da unidade (R$)"
+                  error={erros.valorMensal}
+                  hint="Opcional — usado em repasse/contrato"
+                >
+                  <input
+                    id="unidade-vmu"
+                    type="text"
+                    inputMode="decimal"
+                    value={form.valorMensal}
+                    onChange={e => setField('valorMensal', e.target.value)}
+                    placeholder="0,00"
+                    className={inputCls(!!erros.valorMensal)}
+                    autoComplete="off"
+                  />
+                </Field>
+                <Field
+                  id="unidade-pp"
+                  label="% Peso no contrato"
+                  error={erros.percentualPeso}
+                  hint="Opcional — 0 a 100"
+                >
+                  <input
+                    id="unidade-pp"
+                    type="text"
+                    inputMode="decimal"
+                    value={form.percentualPeso}
+                    onChange={e => setField('percentualPeso', e.target.value)}
+                    placeholder="0"
+                    className={inputCls(!!erros.percentualPeso)}
+                    autoComplete="off"
                   />
                 </Field>
               </div>

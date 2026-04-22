@@ -56,22 +56,6 @@ function inputCls(hasError: boolean) {
   ].join(' ')
 }
 
-// ── DEV mock: simula API quando o backend ainda não existe ────────────────────
-function devMockSave(
-  payload: Omit<ContratoRecord, 'id' | 'createdAt' | 'updatedAt'>,
-  ossList: OssRecord[],
-  existingId?: string,
-): ContratoRecord {
-  const oss = ossList.find(o => o.id === payload.ossId)
-  return {
-    ...payload,
-    id: existingId ?? crypto.randomUUID(),
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    oss: oss ? { id: oss.id, nome: oss.nome, cnpj: oss.cnpj } : undefined,
-  }
-}
-
 const EMPTY: ContratoFormData = {
   ossId:              '',
   numeroContrato:     '',
@@ -106,7 +90,6 @@ export default function ContratosFormModal({ contrato, ossList, ossLoading, onSa
   const [erros, setErros]               = useState<ContratoFormErrors>({})
   const [loading, setLoading]           = useState(false)
   const [apiError, setApiError]         = useState<string | null>(null)
-  const [devMockWarning, setDevMockWarning] = useState(false)
 
   const primeiroRef = useRef<HTMLSelectElement>(null)
 
@@ -191,7 +174,6 @@ export default function ContratosFormModal({ contrato, ossList, ossLoading, onSa
 
     setLoading(true)
     setApiError(null)
-    setDevMockWarning(false)
     try {
       if (isEdit && contrato) {
         const res = await put<ContratoRecord | { data: ContratoRecord }>(
@@ -209,21 +191,7 @@ export default function ContratosFormModal({ contrato, ossList, ossLoading, onSa
     } catch (err) {
       const status  = err instanceof ApiError ? err.status : 0
       const rawMsg  = err instanceof Error   ? err.message : ''
-
-      // ── DEV: endpoint ainda não existe ─────────────────────────────────────
-      const isNotFound   = status === 404 || status === 401
       const isNetworkErr = rawMsg.includes('Failed to fetch') || rawMsg.includes('NetworkError')
-      if (import.meta.env.DEV && (isNotFound || isNetworkErr)) {
-        setDevMockWarning(true)
-        onSalvo(
-          devMockSave(
-            payload as Omit<ContratoRecord, 'id' | 'createdAt' | 'updatedAt'>,
-            ossList,
-            isEdit ? contrato?.id : undefined,
-          ),
-        )
-        return
-      }
 
       // ── Mensagens em português ──────────────────────────────────────────────
       if (status === 409 || rawMsg.toLowerCase().includes('unique') || rawMsg.toLowerCase().includes('número')) {
@@ -291,21 +259,6 @@ export default function ContratosFormModal({ contrato, ossList, ossLoading, onSa
         <form onSubmit={handleSubmit} noValidate>
           <div className="max-h-[70vh] overflow-y-auto px-6 py-5">
             <div className="space-y-4">
-
-              {/* Banner DEV */}
-              {devMockWarning && (
-                <div
-                  role="status"
-                  className="flex items-start gap-2 rounded-lg border border-amber-400/40 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-900/20 dark:text-amber-300"
-                >
-                  <AlertCircle size={16} className="mt-0.5 shrink-0" />
-                  <span>
-                    <strong>Modo DEV:</strong> o endpoint ainda não existe no backend.
-                    Os dados foram salvos <em>localmente</em> apenas para testes —
-                    nada foi persistido no banco de dados.
-                  </span>
-                </div>
-              )}
 
               {/* Banner erro API */}
               {apiError && (

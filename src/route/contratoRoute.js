@@ -26,6 +26,14 @@ router.put(
     controller.atualizar,
 );
 
+router.delete(
+    '/:id',
+    auth(),
+    authorize(PERFIS.ADMIN),
+    auditar('tb_contratos', 'DELETE'),
+    controller.excluir,
+);
+
 router.post(
     '/:id/aditivos',
     auth(),

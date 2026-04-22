@@ -127,4 +127,19 @@ const aplicarAditivo = async (aditivoId) => {
     return db.aditivo.findOne({ where: { aditivo_id: aditivoId } });
 };
 
-module.exports = { listar, buscarPorId, criar, atualizar, adicionarAditivo, aplicarAditivo };
+const excluir = async (contratoId) => {
+    const contrato = await db.contrato.findOne({ where: { contrato_id: contratoId } });
+    if (!contrato) throw new ApiError(httpStatus.NOT_FOUND, 'Contrato não encontrado');
+
+    const totalUnidades = await db.unidade.count({ where: { contrato_id: contratoId } });
+    if (totalUnidades > 0) {
+        throw new ApiError(
+            httpStatus.CONFLICT,
+            `Não é possível excluir: o contrato possui ${totalUnidades} unidade(s) vinculada(s). Remova ou transfira as unidades antes.`,
+        );
+    }
+
+    await contrato.destroy();
+};
+
+module.exports = { listar, buscarPorId, criar, atualizar, adicionarAditivo, aplicarAditivo, excluir };

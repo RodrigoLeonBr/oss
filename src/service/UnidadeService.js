@@ -32,18 +32,37 @@ function toRecord(u) {
     };
 }
 
+function defaultSiglaDeNome(nome) {
+    if (!nome || typeof nome !== 'string') return 'UNI';
+    const w = nome.trim().split(/\s+/).filter(Boolean);
+    if (w.length >= 2) {
+        const a = (w[0][0] + w[1][0]).toUpperCase();
+        if (a.length >= 2) return a.slice(0, 20);
+    }
+    const s = nome.replace(/[^A-Za-zÀ-ÿ0-9]/g, '').toUpperCase();
+    return s.slice(0, 20) || 'UNI';
+}
+
 function fromPayload(p) {
     const m = {};
     if (p.contratoId !== undefined)          m.contrato_id = p.contratoId;
     if (p.nome !== undefined)                m.nome = p.nome;
     if (p.sigla !== undefined)               m.sigla = p.sigla;
     if (p.tipo !== undefined)                m.tipo = p.tipo;
+    // Frontend envia cnpj no formulário; coluna do BD é cnes
     if (p.cnes !== undefined)                m.cnes = p.cnes || null;
+    if (p.cnpj !== undefined)                m.cnes = p.cnpj || m.cnes || null;
     if (p.endereco !== undefined)            m.endereco = p.endereco || null;
     if (p.porte !== undefined)               m.porte = p.porte || null;
     if (p.capacidade !== undefined)          m.capacidade_leitos = p.capacidade ?? null;
     if (p.capacidadeLeitos !== undefined)    m.capacidade_leitos = p.capacidadeLeitos ?? null;
-    if (p.especialidades !== undefined)      m.especialidades = p.especialidades ?? null;
+    if (p.especialidades !== undefined) {
+        const esp = p.especialidades;
+        if (Array.isArray(esp)) m.especialidades = esp.length ? esp : null;
+        else if (typeof esp === 'string' && esp.trim()) {
+            m.especialidades = esp.split(',').map((s) => s.trim()).filter(Boolean);
+        } else m.especialidades = null;
+    }
     if (p.responsavelTecnico !== undefined)  m.responsavel_tecnico = p.responsavelTecnico || null;
     if (p.valorMensalUnidade !== undefined)  m.valor_mensal_unidade = p.valorMensalUnidade ?? null;
     if (p.percentualPeso !== undefined)      m.percentual_peso = p.percentualPeso ?? null;
@@ -90,6 +109,13 @@ const buscarPorId = async (id) => {
 const criar = async (payload) => {
     const dados = fromPayload(payload);
     if (!dados.contrato_id) throw new ApiError(httpStatus.BAD_REQUEST, 'contratoId é obrigatório');
+    if (!dados.nome) throw new ApiError(httpStatus.BAD_REQUEST, 'nome é obrigatório');
+    if (!dados.tipo) throw new ApiError(httpStatus.BAD_REQUEST, 'tipo é obrigatório');
+
+    // tb_unidades.sigla é NOT NULL; o form atual não envia sigla
+    if (dados.sigla === undefined || dados.sigla === null || !String(dados.sigla).trim()) {
+        dados.sigla = defaultSiglaDeNome(dados.nome);
+    }
 
     const contrato = await db.contrato.findOne({ where: { contrato_id: dados.contrato_id } });
     if (!contrato) throw new ApiError(httpStatus.NOT_FOUND, 'Contrato não encontrado');

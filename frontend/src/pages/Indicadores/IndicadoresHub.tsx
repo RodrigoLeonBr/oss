@@ -3,7 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { BarChart3, Hospital, RefreshCw, ArrowRight, Search, X as XIcon } from 'lucide-react'
 import { useApi } from '../../hooks/useApi'
 import type { UnidadeRecord } from '../Unidades/types'
-import { TIPO_LABELS, TIPO_BADGE, STATUS_BADGE, STATUS_LABELS, mockUnidades, unwrap } from '../Unidades/types'
+import {
+  STATUS_BADGE, STATUS_LABELS, mockUnidades, unwrap, tipoBadgeSafe, tipoLabelSafe,
+} from '../Unidades/types'
 
 // ── Skeleton card ─────────────────────────────────────────────────────────────
 function SkeletonCard() {
@@ -146,8 +148,8 @@ export default function IndicadoresHub() {
                   <Hospital size={18} />
                 </div>
                 <div className="flex flex-wrap justify-end gap-1.5">
-                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${TIPO_BADGE[u.tipo]}`}>
-                    {TIPO_LABELS[u.tipo]}
+                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${tipoBadgeSafe(u.tipo)}`}>
+                    {tipoLabelSafe(u.tipo)}
                   </span>
                   <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${STATUS_BADGE[u.status]}`}>
                     {STATUS_LABELS[u.status]}

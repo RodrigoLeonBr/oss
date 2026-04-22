@@ -28,19 +28,20 @@ const jwtVerify = async (req, payload, done) => {
         }
 
         // Verificar token no Redis (cache) ou no banco
+        // hasToken é async: sem await, tokenDoc virava Promise (truthy) e a validação era ignorada
         const redisService = new RedisService();
         const tokenDao = new TokenDao();
 
-        let tokenDoc = redisService.hasToken(authorization[1], 'access_token');
-        if (!tokenDoc) {
-            tokenDoc = await tokenDao.findOne({
+        const inRedis = await redisService.hasToken(authorization[1], 'access_token');
+        const tokenRecord = inRedis
+            ? { ok: true }
+            : await tokenDao.findOne({
                 token: authorization[1],
                 type: tokenTypes.ACCESS,
                 blacklisted: false,
             });
-        }
 
-        if (!tokenDoc) {
+        if (!tokenRecord) {
             return done(null, false);
         }
 

@@ -1,6 +1,19 @@
 import { useCallback } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 
+const AUTH_KEY = 'oss_auth'
+
+function readTokenFromStorage(): string | null {
+  try {
+    const raw = localStorage.getItem(AUTH_KEY)
+    if (!raw) return null
+    const p = JSON.parse(raw) as { token?: string | null }
+    return p.token && typeof p.token === 'string' ? p.token : null
+  } catch {
+    return null
+  }
+}
+
 interface RequestOptions extends Omit<RequestInit, 'headers'> {
   headers?: Record<string, string>
 }
@@ -26,8 +39,9 @@ export function useApi() {
         ...options.headers,
       }
 
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`
+      const accessToken = token ?? readTokenFromStorage()
+      if (accessToken) {
+        headers['Authorization'] = `Bearer ${accessToken}`
       }
 
       const res = await fetch(`/api${endpoint}`, {
@@ -45,12 +59,24 @@ export function useApi() {
       }
 
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
+        const body = (await res.json().catch(() => ({}))) as { message?: string; error?: string; code?: number }
         const serverMsg: string = body.message || body.error || ''
-        throw new ApiError(res.status, serverMsg || `Erro HTTP ${res.status}`)
+        // Se o proxy/servidor devolve 500 com corpo { code: 401 }, alinhar ao código semântico
+        const code =
+          typeof body.code === 'number' && body.code >= 400 && res.status === 500 ? body.code : res.status
+        throw new ApiError(code, serverMsg || `Erro HTTP ${res.status}`)
       }
 
-      return res.json()
+      if (res.status === 204 || res.status === 205) {
+        return undefined as T
+      }
+
+      const text = await res.text()
+      if (!text.trim()) {
+        return undefined as T
+      }
+
+      return JSON.parse(text) as T
     },
     [token, logout],
   )
