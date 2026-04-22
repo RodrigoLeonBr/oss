@@ -68,7 +68,8 @@ export default function EntradaMensalModal({ acompanhamento: ac, onSalvo, onFech
 
   const valor = valorStr === '' ? null : parseFloat(valorStr)
   const statusPreview = calcularStatusPreview(ac.metaTipo, valor, ac.metaParcial, ac.metaMinima)
-  const precisaDescricao = statusPreview !== 'atingido' || ac.metaTipo === 'menor_igual'
+  const mostrarDesvios   = statusPreview !== 'atingido' || ac.metaTipo === 'menor_igual'
+  const desviosObrigatorio = statusPreview !== 'atingido'
   const faixas = faixaLabel(ac.metaTipo, ac.metaMinima, ac.metaParcial)
 
   const [anoStr, mesStr] = (ac.mesReferencia ?? '').split('-')
@@ -79,7 +80,7 @@ export default function EntradaMensalModal({ acompanhamento: ac, onSalvo, onFech
   function validate(): boolean {
     const e: typeof erros = {}
     if (valor === null || isNaN(valor) || valor < 0) e.valor = 'Informe um valor numérico ≥ 0'
-    if (precisaDescricao && !descricao.trim()) e.descricao = 'Descrição de desvios é obrigatória'
+    if (desviosObrigatorio && !descricao.trim()) e.descricao = 'Descrição de desvios é obrigatória'
     setErros(e)
     return Object.keys(e).length === 0
   }
@@ -199,7 +200,7 @@ export default function EntradaMensalModal({ acompanhamento: ac, onSalvo, onFech
           )}
 
           {/* Campo desvios */}
-          {precisaDescricao && (
+          {mostrarDesvios && (
             <Field id="descricaoDesvios" label="Descrição de desvios" required error={erros.descricao}>
               <textarea
                 id="descricaoDesvios"
