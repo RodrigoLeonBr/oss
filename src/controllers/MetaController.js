@@ -1,23 +1,26 @@
 const httpStatus = require('http-status');
+const MetaService = require('../service/MetaService');
+const { listarMetas, criarMeta, atualizarMeta } = require('../validator/MetaValidator');
 const ApiError = require('../helper/ApiError');
-const { criarMeta, atualizarMeta } = require('../validator/MetaValidator');
-const db = require('../models');
 const logger = require('../config/logger');
 
 class MetaController {
     listar = async (req, res, next) => {
         try {
-            const where = {};
-            if (req.query.indicador_id) where.indicador_id = req.query.indicador_id;
-
-            const metas = await db.meta.findAll({
-                where,
-                include: [
-                    { model: db.indicador, as: 'indicador', attributes: ['indicador_id', 'codigo', 'nome', 'grupo'] },
-                ],
-                order: [['vigencia_inicio', 'DESC']],
-            });
+            const { error, value } = listarMetas.validate(req.query);
+            if (error) return next(new ApiError(httpStatus.BAD_REQUEST, error.details[0].message));
+            const metas = await MetaService.listar(value);
             return res.status(httpStatus.OK).json({ status: true, data: metas });
+        } catch (e) {
+            logger.error(e);
+            return next(e);
+        }
+    };
+
+    buscarPorId = async (req, res, next) => {
+        try {
+            const meta = await MetaService.buscarPorId(req.params.id);
+            return res.status(httpStatus.OK).json({ status: true, data: meta });
         } catch (e) {
             logger.error(e);
             return next(e);
@@ -28,13 +31,12 @@ class MetaController {
         try {
             const { error, value } = criarMeta.validate(req.body);
             if (error) return next(new ApiError(httpStatus.BAD_REQUEST, error.details[0].message));
-
-            if (value.meta_anual && !value.meta_mensal) {
-                value.meta_mensal = parseFloat((value.meta_anual / 12).toFixed(4));
-            }
-
-            const meta = await db.meta.create(value);
-            return res.status(httpStatus.CREATED).json({ status: true, message: 'Meta criada', data: meta });
+            const meta = await MetaService.criar(value);
+            return res.status(httpStatus.CREATED).json({
+                status: true,
+                message: 'Meta criada com sucesso',
+                data: meta,
+            });
         } catch (e) {
             logger.error(e);
             return next(e);
@@ -45,12 +47,22 @@ class MetaController {
         try {
             const { error, value } = atualizarMeta.validate(req.body);
             if (error) return next(new ApiError(httpStatus.BAD_REQUEST, error.details[0].message));
+            const meta = await MetaService.atualizar(req.params.id, value);
+            return res.status(httpStatus.OK).json({
+                status: true,
+                message: 'Meta atualizada com sucesso',
+                data: meta,
+            });
+        } catch (e) {
+            logger.error(e);
+            return next(e);
+        }
+    };
 
-            const meta = await db.meta.findOne({ where: { meta_id: req.params.id } });
-            if (!meta) return next(new ApiError(httpStatus.NOT_FOUND, 'Meta não encontrada'));
-
-            await meta.update(value);
-            return res.status(httpStatus.OK).json({ status: true, message: 'Meta atualizada', data: await meta.reload() });
+    remover = async (req, res, next) => {
+        try {
+            await MetaService.remover(req.params.id);
+            return res.status(httpStatus.NO_CONTENT).send();
         } catch (e) {
             logger.error(e);
             return next(e);

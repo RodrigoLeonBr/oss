@@ -12,11 +12,6 @@ interface UnidadeCard {
   sigla?: string
 }
 
-const mockUnidades: UnidadeCard[] = [
-  { id: 'u1111111-1111-1111-1111-111111111111', nome: 'UPA 24h Centro', sigla: 'UPA-CTR' },
-  { id: 'u2222222-2222-2222-2222-222222222222', nome: 'Hospital Municipal Sul', sigla: 'HMS' },
-]
-
 type StatusCumprimento = AcompanhamentoRecord['statusCumprimento']
 
 interface Progresso {
@@ -48,31 +43,32 @@ export default function EntradaMensalHub() {
 
   const [unidades, setUnidades] = useState<UnidadeCard[]>([])
   const [loadingUnidades, setLoadingUnidades] = useState(true)
+  const [erroUnidades, setErroUnidades] = useState<string | null>(null)
   const [meses, setMeses] = useState<Record<string, string>>({})
   const [progressos, setProgressos] = useState<Record<string, Progresso | null>>({})
 
-  const carregarUnidades = useCallback(async () => {
+  const carregarUnidades = useCallback(async (signal: { aborted: boolean }) => {
     setLoadingUnidades(true)
+    setErroUnidades(null)
     try {
       const raw = await api.get('/unidades?ativo=1')
+      if (signal.aborted) return
       const data = unwrap(raw) as UnidadeCard[]
       setUnidades(data)
       const m: Record<string, string> = {}
       for (const u of data) m[u.id] = mesDefault
       setMeses(m)
     } catch {
-      setUnidades(mockUnidades)
-      const m: Record<string, string> = {}
-      for (const u of mockUnidades) m[u.id] = mesDefault
-      setMeses(m)
+      if (signal.aborted) return
+      setErroUnidades('Não foi possível carregar as unidades.')
     } finally {
-      setLoadingUnidades(false)
+      if (!signal.aborted) setLoadingUnidades(false)
     }
   }, [])
 
   useEffect(() => {
     const signal = { aborted: false }
-    carregarUnidades()
+    carregarUnidades(signal)
     return () => { signal.aborted = true }
   }, [carregarUnidades])
 
@@ -107,6 +103,10 @@ export default function EntradaMensalHub() {
 
   if (loadingUnidades) {
     return <div className="flex justify-center py-24"><Loader2 size={24} className="animate-spin text-primary" /></div>
+  }
+
+  if (erroUnidades) {
+    return <p className="py-24 text-center text-sm text-red-500">{erroUnidades}</p>
   }
 
   if (unidades.length === 0) {

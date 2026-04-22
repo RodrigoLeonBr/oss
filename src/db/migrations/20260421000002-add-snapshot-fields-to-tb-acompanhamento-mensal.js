@@ -45,6 +45,9 @@ module.exports = {
     await queryInterface.removeColumn('tb_acompanhamento_mensal', 'meta_tipo_snap');
     await queryInterface.removeColumn('tb_acompanhamento_mensal', 'meta_parcial');
     await queryInterface.removeColumn('tb_acompanhamento_mensal', 'meta_minima');
+    await queryInterface.sequelize.query(
+      "UPDATE tb_acompanhamento_mensal SET status_cumprimento = 'aguardando' WHERE status_cumprimento IN ('atingido', 'nao_atingido', 'pendente')"
+    );
     await queryInterface.changeColumn('tb_acompanhamento_mensal', 'status_cumprimento', {
       type: Sequelize.ENUM('cumprido', 'parcial', 'nao_cumprido', 'nao_aplicavel', 'aguardando'),
       allowNull: false,
