@@ -1,0 +1,116 @@
+<h2>Entrada Mensal — 3 abordagens arquiteturais</h2>
+<p class="subtitle">Dados: Indicadores por Unidade + Meta Vigente → Lançamento mensal. Cada opção define como o gestor navega e registra.</p>
+
+<div class="options">
+
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Hub → Lista com edição inline</h3>
+      <p><strong>Fluxo:</strong> EntradaMensalHub mostra cards de unidade + seletor de mês → clique → EntradaMensalList com linhas editáveis diretamente na tabela. Salva ao pressionar Enter/Tab ou sair do campo. Nenhum modal.</p>
+      <div style="margin-top:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;font-size:12px">
+        <div style="display:grid;grid-template-columns:2fr 80px 100px 80px 70px;gap:8px;padding:4px 0;border-bottom:1px solid #e2e8f0;font-weight:600;color:#64748b">
+          <span>Indicador</span><span>Meta</span><span>Realizado ✎</span><span>%</span><span>Status</span>
+        </div>
+        <div style="display:grid;grid-template-columns:2fr 80px 100px 80px 70px;gap:8px;padding:6px 0;border-bottom:1px solid #f1f5f9;align-items:center">
+          <span style="color:#1e293b;font-size:11px">Atend. Urgência</span>
+          <span style="font-family:monospace;color:#475569">12.000</span>
+          <input style="background:#eff6ff;border:1px solid #93c5fd;border-radius:4px;padding:3px 6px;width:90px;font-family:monospace;font-size:12px" value="12.500" />
+          <span style="font-family:monospace;font-weight:700;color:#16a34a">104,2%</span>
+          <span style="background:#dcfce7;color:#16a34a;border-radius:999px;padding:2px 6px;font-size:10px">✓</span>
+        </div>
+        <div style="display:grid;grid-template-columns:2fr 80px 100px 80px 70px;gap:8px;padding:6px 0;align-items:center">
+          <span style="color:#1e293b;font-size:11px">Internações Clín.</span>
+          <span style="font-family:monospace;color:#475569">800</span>
+          <input style="background:#f8fafc;border:1px solid #cbd5e1;border-radius:4px;padding:3px 6px;width:90px;font-family:monospace;font-size:12px" placeholder="—" />
+          <span style="color:#94a3b8;font-size:11px">—</span>
+          <span style="background:#f1f5f9;color:#94a3b8;border-radius:999px;padding:2px 6px;font-size:10px">pendente</span>
+        </div>
+      </div>
+      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+        <span style="background:#dcfce7;color:#16a34a;padding:2px 8px;border-radius:4px;font-size:11px">+ rápido para lançadores experientes</span>
+        <span style="background:#fee2e2;color:#dc2626;padding:2px 8px;border-radius:4px;font-size:11px">− menos espaço para desvios/observações</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Hub → Lista → Modal de lançamento ⭐ recomendado</h3>
+      <p><strong>Fluxo:</strong> Mesma navegação Hub → List, mas clicar na linha abre um modal detalhado. Modal mostra meta completa (mensal + mínima + parcial), campo de valor realizado, barra de progresso em tempo real, campo de desvios (obrigatório se &lt;85%). Salva e fecha.</p>
+      <div style="margin-top:12px;display:flex;gap:12px">
+        <div style="flex:1;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px;font-size:11px">
+          <div style="font-weight:600;color:#64748b;margin-bottom:8px">LISTA</div>
+          <div style="display:grid;grid-template-columns:2fr 80px 70px;gap:6px;margin-bottom:4px;font-size:10px;font-weight:600;color:#94a3b8">
+            <span>Indicador</span><span>Meta</span><span>Status</span>
+          </div>
+          <div style="display:grid;grid-template-columns:2fr 80px 70px;gap:6px;padding:4px;background:#eff6ff;border-radius:4px;cursor:pointer;align-items:center">
+            <span style="color:#1e293b">Atend. Urgência</span>
+            <span style="font-family:monospace">12.000</span>
+            <span style="background:#dcfce7;color:#16a34a;border-radius:999px;padding:1px 6px;font-size:10px">✓</span>
+          </div>
+          <div style="display:grid;grid-template-columns:2fr 80px 70px;gap:6px;padding:4px;align-items:center;margin-top:2px">
+            <span style="color:#1e293b">Internações</span>
+            <span style="font-family:monospace">800</span>
+            <span style="background:#fef9c3;color:#ca8a04;border-radius:999px;padding:1px 6px;font-size:10px">pendente</span>
+          </div>
+        </div>
+        <div style="flex:1;background:#1e3a5f;border-radius:8px;padding:10px;font-size:11px;color:white">
+          <div style="font-weight:600;margin-bottom:8px;font-size:12px">MODAL</div>
+          <div style="background:rgba(255,255,255,0.1);border-radius:4px;padding:6px;margin-bottom:6px">
+            <div style="font-size:10px;opacity:0.7">Meta mensal</div>
+            <div style="font-family:monospace;font-weight:700">12.000 atend.</div>
+            <div style="font-size:10px;opacity:0.7;margin-top:2px">Mínima: 8.400 · Parcial: 10.200</div>
+          </div>
+          <div style="margin-bottom:6px">
+            <div style="font-size:10px;opacity:0.7;margin-bottom:2px">Valor realizado</div>
+            <div style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:4px;padding:4px 8px;font-family:monospace">12.500</div>
+          </div>
+          <div style="background:#22c55e;border-radius:2px;height:4px;width:100%;margin-bottom:4px">
+            <div style="background:#15803d;border-radius:2px;height:4px;width:104%"></div>
+          </div>
+          <div style="font-family:monospace;font-size:12px;color:#86efac;text-align:center">104,2% ✓</div>
+        </div>
+      </div>
+      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+        <span style="background:#dcfce7;color:#16a34a;padding:2px 8px;border-radius:4px;font-size:11px">+ espaço para desvios + contexto completo da meta</span>
+        <span style="background:#fef9c3;color:#92400e;padding:2px 8px;border-radius:4px;font-size:11px">± mais cliques que inline</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Integrado ao IndicadoresList (sem hub separado)</h3>
+      <p><strong>Fluxo:</strong> Sem página separada. Em <code>/indicadores/:unidadeId</code>, adicionar coluna "Lançar" e seletor de mês no header. Clicar em "Lançar" na linha abre modal de lançamento. Indicadores e metas já estão carregados.</p>
+      <div style="margin-top:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px;font-size:11px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span style="font-weight:600;color:#1e293b">Indicadores — UPA 24h Cillos</span>
+          <div style="background:#1b3a66;color:white;border-radius:6px;padding:3px 10px;font-size:11px">Março 2026 ▾</div>
+        </div>
+        <div style="display:grid;grid-template-columns:2fr 70px 80px 80px 70px;gap:6px;font-size:10px;font-weight:600;color:#94a3b8;border-bottom:1px solid #e2e8f0;padding-bottom:4px">
+          <span>Nome</span><span>Tipo</span><span>Meta</span><span>Status</span><span>Lançar</span>
+        </div>
+        <div style="display:grid;grid-template-columns:2fr 70px 80px 80px 70px;gap:6px;padding:5px 0;align-items:center">
+          <span>Atend. Urgência</span>
+          <span style="background:#dbeafe;color:#1d4ed8;border-radius:999px;padding:1px 6px;font-size:10px">prod.</span>
+          <span style="font-family:monospace">8.000</span>
+          <span style="background:#dcfce7;color:#16a34a;border-radius:999px;padding:1px 6px;font-size:10px">✓ 102%</span>
+          <button style="background:#1b3a66;color:white;border-radius:4px;padding:2px 8px;font-size:10px;border:none">Editar</button>
+        </div>
+      </div>
+      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+        <span style="background:#dcfce7;color:#16a34a;padding:2px 8px;border-radius:4px;font-size:11px">+ zero navegação extra</span>
+        <span style="background:#fee2e2;color:#dc2626;padding:2px 8px;border-radius:4px;font-size:11px">− mistura dois fluxos distintos numa página</span>
+        <span style="background:#fee2e2;color:#dc2626;padding:2px 8px;border-radius:4px;font-size:11px">− IndicadoresList fica sobrecarregada</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div style="margin-top:20px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px;font-size:12px;color:#1e40af">
+  <strong>Recomendação:</strong> B — modal mantém consistência com o padrão já estabelecido nas outras páginas CRUD, dá espaço para campos de desvio (obrigatório &lt;85%), e o hub com seletor de mês replica o padrão MetasHub/IndicadoresHub que já existe no projeto.
+</div>

@@ -3,7 +3,7 @@ type: doc
 name: tooling
 description: Scripts, IDE settings, automation, and developer productivity tips
 category: tooling
-generated: 2026-04-13
+generated: 2026-04-19
 status: filled
 scaffoldVersion: "2.0.0"
 ---
@@ -26,11 +26,12 @@ Este guia documenta as ferramentas, scripts e configurações necessárias para 
 
 ## Recommended Automation
 
-### Scripts npm disponíveis
+### Scripts npm disponíveis (raiz)
 
 ```bash
 npm start              # Inicia o servidor backend (porta 5000)
 npm test               # Executa testes Jest
+npm run build          # Build completo: tsc + vite build (frontend)
 npm run db:migrate     # Aplica migrações pendentes
 npm run db:migrate:undo # Desfaz última migração
 npm run db:seed        # Executa todos os seeders
@@ -41,10 +42,10 @@ npm run db:seed:undo   # Desfaz todos os seeds
 
 ```bash
 cd frontend
-npm run dev            # Dev server Vite (porta 5173, proxy /api → 5000)
-npm run build          # Build de produção
-npm run preview        # Preview do build
-npx tsc --noEmit       # Verificação de tipos TypeScript
+npm run dev            # Dev server Vite (porta 3000 ou 5173, proxy /api → 5000)
+npm run build          # Build de produção (tsc && vite build com Rolldown)
+npm run preview        # Preview do build de produção
+npx tsc --noEmit       # Verificação de tipos TypeScript (deve ter zero erros)
 ```
 
 ### Sequelize CLI
@@ -53,6 +54,64 @@ npx tsc --noEmit       # Verificação de tipos TypeScript
 npx sequelize-cli migration:generate --name create-nova-tabela
 npx sequelize-cli seed:generate --name seed-dados-iniciais
 npx sequelize-cli db:migrate:status
+```
+
+## Vite 8 + Rolldown
+
+O frontend usa **Vite 8** com o engine **Rolldown** (substituto do Rollup). Diferenças importantes:
+
+- `manualChunks` **deve ser uma função** (não objeto):
+  ```typescript
+  manualChunks(id: string) {
+    if (id.includes('node_modules/chart.js')) return 'vendor-charts'
+    if (id.includes('node_modules/react/')) return 'vendor-react'
+    // ...
+  }
+  ```
+- Chunks gerados: `vendor-react`, `vendor-charts`, `vendor-ui` (react-window + lucide-react)
+- Todas as páginas são lazy-loaded via `React.lazy()` + `Suspense` para code-splitting automático
+
+## react-window v2
+
+O projeto usa **react-window v2** (API diferente da v1). Não instalar `@types/react-window` separado.
+
+```typescript
+// ✅ API v2 correta
+import { List, type RowComponentProps } from 'react-window'
+
+function MinhaRow({ ariaAttributes, index, style, ...rowProps }: RowComponentProps<MeuRowProps>) { ... }
+
+<List
+  rowComponent={MinhaRow}
+  rowCount={items.length}
+  rowHeight={52}
+  rowProps={{ items, onEdit, onDelete }}
+  overscanCount={5}
+  style={{ height: listHeight, width: tableWidth }}
+/>
+
+// ❌ API v1 (não usar)
+import { FixedSizeList, type ListChildComponentProps } from 'react-window'
+```
+
+## TypeScript — `erasableSyntaxOnly`
+
+O `tsconfig.json` tem `erasableSyntaxOnly: true` (padrão Vite 6+). Isso **proíbe parameter properties** em construtores:
+
+```typescript
+// ❌ Proibido — parameter property
+class ApiError extends Error {
+  constructor(public readonly status: number, message: string) { ... }
+}
+
+// ✅ Correto — propriedade declarada separadamente
+class ApiError extends Error {
+  readonly status: number
+  constructor(status: number, message: string) {
+    super(message)
+    this.status = status
+  }
+}
 ```
 
 ## IDE / Editor Setup
@@ -108,3 +167,12 @@ Os cron jobs são definidos em `src/cronJobs.js` e executam:
 - Cálculo automático de descontos (dia 5 de cada mês)
 - Alerta de documentação regulatória expirando (semanal)
 - Lembrete de acompanhamento não preenchido (dia 3 de cada mês)
+
+### Depuração de erros comuns de build
+
+| Erro | Causa | Solução |
+|------|-------|---------|
+| `TS1294: erasableSyntaxOnly` | Parameter property em constructor | Declare a propriedade antes do `constructor` |
+| `manualChunks is not a function` | Rolldown exige função, não objeto | Converter `manualChunks: {}` para `manualChunks(id) {}` |
+| `Module has no exported member 'FixedSizeList'` | react-window v2 mudou API | Usar `List` + `RowComponentProps` da v2 |
+| `chunk > 500 kB` | Dependência grande no chunk principal | Adicionar entry em `manualChunks` |

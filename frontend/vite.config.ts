@@ -15,4 +15,26 @@ export default defineConfig({
     },
   },
   base: './',
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id: string) {
+          if (id.includes('node_modules/chart.js') || id.includes('node_modules/react-chartjs-2')) {
+            return 'vendor-charts'
+          }
+          if (id.includes('node_modules/react-window') || id.includes('node_modules/lucide-react')) {
+            return 'vendor-ui'
+          }
+          if (
+            id.includes('node_modules/react/') ||
+            id.includes('node_modules/react-dom/') ||
+            id.includes('node_modules/react-router-dom/') ||
+            id.includes('node_modules/react-router/')
+          ) {
+            return 'vendor-react'
+          }
+        },
+      },
+    },
+  },
 })

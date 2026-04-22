@@ -7,8 +7,11 @@ const { auditar } = require('../middlewares/auditoria');
 const router = express.Router();
 const controller = new MetaController();
 
-router.get('/', auth(), controller.listar);
+// ── Leitura — todos os perfis autenticados ────────────────────────────────────
+router.get('/',    auth(), controller.listar);
+router.get('/:id', auth(), controller.buscarPorId);
 
+// ── Criação ───────────────────────────────────────────────────────────────────
 router.post(
     '/',
     auth(),
@@ -17,12 +20,22 @@ router.post(
     controller.criar,
 );
 
+// ── Atualização ───────────────────────────────────────────────────────────────
 router.put(
     '/:id',
     auth(),
     authorize(PERFIS.ADMIN, PERFIS.GESTOR_SMS),
     auditar('tb_metas', 'UPDATE'),
     controller.atualizar,
+);
+
+// ── Exclusão ──────────────────────────────────────────────────────────────────
+router.delete(
+    '/:id',
+    auth(),
+    authorize(PERFIS.ADMIN, PERFIS.GESTOR_SMS),
+    auditar('tb_metas', 'DELETE'),
+    controller.remover,
 );
 
 module.exports = router;

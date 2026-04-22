@@ -18,15 +18,20 @@ interface AuthContextType extends AuthState {
 
 const AuthContext = createContext<AuthContextType | null>(null)
 
+function makeToken(u: Usuario) {
+  return btoa(JSON.stringify({ usuario_id: u.usuario_id, perfil: u.perfil, exp: Date.now() + 3_600_000 }))
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [auth, setAuth] = useState<AuthState>(() => {
     const saved = localStorage.getItem('oss_auth')
     if (saved) {
-      try {
-        return JSON.parse(saved)
-      } catch {
-        return { user: null, token: null, isAuthenticated: false }
-      }
+      try { return JSON.parse(saved) } catch { /* fall through */ }
+    }
+    // Dev: auto-login as admin so SidebarMenu is always visible during development
+    if (import.meta.env.DEV) {
+      const admin = mockUsuarios.find(u => u.perfil === 'admin')
+      if (admin) return { user: admin, token: makeToken(admin), isAuthenticated: true }
     }
     return { user: null, token: null, isAuthenticated: false }
   })
@@ -60,8 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!mockUser) {
       throw new Error('Credenciais inválidas')
     }
-    const fakeToken = btoa(JSON.stringify({ usuario_id: mockUser.usuario_id, perfil: mockUser.perfil, exp: Date.now() + 3600000 }))
-    setAuth({ user: mockUser, token: fakeToken, isAuthenticated: true })
+    setAuth({ user: mockUser, token: makeToken(mockUser), isAuthenticated: true })
   }, [])
 
   const logout = useCallback(() => {

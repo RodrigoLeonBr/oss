@@ -1,26 +1,50 @@
-# Documentation Index
+---
+description: Índice da base de conhecimento do projeto. Use como ponto de entrada para entender o projeto antes de qualquer tarefa.
+alwaysApply: true
+---
 
-Welcome to the repository knowledge base. Start with the project overview, then dive into specific guides as needed.
+# OSS Saúde — Base de Conhecimento
 
-## Core Guides
-- [Project Overview](./project-overview.md)
-- [Development Workflow](./development-workflow.md)
-- [Testing Strategy](./testing-strategy.md)
-- [Tooling & Productivity Guide](./tooling.md)
+> Gerado a partir de `.context/docs`. Leia os guias abaixo antes de implementar qualquer funcionalidade.
 
-## Repository Snapshot
-- `Dockerfile/`
-- `docs/` — Living documentation produced by this tool.
-- `frontend/`
-- `package.json/`
-- `README.md/`
-- `specs/`
-- `src/` — TypeScript source files and CLI entrypoints.
+## Guias Principais
 
-## Document Map
-| Guide | File | Primary Inputs |
-| --- | --- | --- |
-| Project Overview | `project-overview.md` | Roadmap, README, stakeholder notes |
-| Development Workflow | `development-workflow.md` | Branching rules, CI config, contributing guide |
-| Testing Strategy | `testing-strategy.md` | Test configs, CI gates, known flaky suites |
-| Tooling & Productivity Guide | `tooling.md` | CLI scripts, IDE configs, automation workflows |
+- [Visão Geral do Projeto](.context/docs/project-overview.md)
+- [Fluxo de Desenvolvimento](.context/docs/development-workflow.md)
+- [Estratégia de Testes](.context/docs/testing-strategy.md)
+- [Ferramentas & Produtividade](.context/docs/tooling.md)
+
+## Q&A — Perguntas Frequentes
+
+- [Como configurar e rodar o projeto?](.context/docs/qa/getting-started.md)
+- [Como o codebase está organizado?](.context/docs/qa/project-structure.md)
+- [Como funciona a autenticação?](.context/docs/qa/authentication.md)
+- [Como os dados são armazenados?](.context/docs/qa/database.md)
+- [Quais endpoints de API existem?](.context/docs/qa/api-endpoints.md)
+- [Como funciona o cache?](.context/docs/qa/caching.md)
+- [Como os erros são tratados?](.context/docs/qa/error-handling.md)
+- [Como fazer deploy?](.context/docs/qa/deployment.md)
+- [Como rodar e escrever testes?](.context/docs/qa/testing.md)
+
+## Skills Disponíveis
+
+Habilidades do agente ficam em `.context/skills/`:
+- `api-design/` — Design de endpoints REST
+- `bug-investigation/` — Investigação de bugs
+- `code-review/` — Revisão de código
+- `commit-message/` — Mensagens de commit
+- `documentation/` — Documentação técnica
+- `pr-review/` — Revisão de PRs
+- `refactoring/` — Refatoração segura
+- `test-generation/` — Geração de testes
+
+## Snapshot do Repositório
+
+| Caminho | Descrição |
+| --- | --- |
+| `src/` | Backend Node.js/Express (controllers, services, models, DAO) |
+| `frontend/` | Frontend React 18 + TypeScript + Vite |
+| `docs/` | Documentação viva do produto (PRD, Arquitetura, ERD) |
+| `specs/` | Especificações OpenAPI |
+| `.context/` | Base de conhecimento e configuração de agentes |
+| `Dockerfile` / `docker-compose.yml` | Infraestrutura de containers |
