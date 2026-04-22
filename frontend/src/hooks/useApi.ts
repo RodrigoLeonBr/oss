@@ -5,6 +5,17 @@ interface RequestOptions extends Omit<RequestInit, 'headers'> {
   headers?: Record<string, string>
 }
 
+// Erro tipado com status HTTP — permite distinguir 404, 409, 500 nos componentes
+export class ApiError extends Error {
+  readonly status: number
+
+  constructor(status: number, message: string) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+  }
+}
+
 export function useApi() {
   const { token, logout } = useAuth()
 
@@ -25,13 +36,18 @@ export function useApi() {
       })
 
       if (res.status === 401) {
-        logout()
-        throw new Error('Sessão expirada')
+        // Em DEV, não força logout: o componente cai no catch e usa dados mock.
+        // Em PROD (backend real), logout imediato por sessão expirada.
+        if (!import.meta.env.DEV) {
+          logout()
+        }
+        throw new ApiError(401, 'Sessão expirada. Faça login novamente.')
       }
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
-        throw new Error(body.message || `Erro ${res.status}`)
+        const serverMsg: string = body.message || body.error || ''
+        throw new ApiError(res.status, serverMsg || `Erro HTTP ${res.status}`)
       }
 
       return res.json()
@@ -53,5 +69,10 @@ export function useApi() {
     [request],
   )
 
-  return { get, post, put, request }
+  const del = useCallback(
+    <T = void>(endpoint: string) => request<T>(endpoint, { method: 'DELETE' }),
+    [request],
+  )
+
+  return { get, post, put, del, request }
 }

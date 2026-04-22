@@ -10,6 +10,13 @@ class AcompanhamentoMensal extends Model {
         mes_referencia: { type: DataTypes.DATEONLY, allowNull: false },
         meta_vigente_mensal: DataTypes.DECIMAL(15, 4),
         meta_vigente_qualit: DataTypes.DECIMAL(15, 4),
+        meta_minima:    DataTypes.DECIMAL(15, 4),
+        meta_parcial:   DataTypes.DECIMAL(15, 4),
+        meta_tipo_snap: {
+          type: DataTypes.ENUM('maior_igual', 'menor_igual'),
+          allowNull: false,
+          defaultValue: 'maior_igual',
+        },
         valor_realizado: DataTypes.DECIMAL(15, 4),
         percentual_cumprimento: { type: DataTypes.VIRTUAL, get() {
           const meta = parseFloat(this.getDataValue('meta_vigente_mensal'));
@@ -19,8 +26,12 @@ class AcompanhamentoMensal extends Model {
         }},
         variacao_vs_mes_ant: DataTypes.DECIMAL(8, 4),
         status_cumprimento: {
-          type: DataTypes.ENUM('cumprido', 'parcial', 'nao_cumprido', 'nao_aplicavel', 'aguardando'),
-          allowNull: false, defaultValue: 'aguardando',
+          type: DataTypes.ENUM(
+            'cumprido', 'parcial', 'nao_cumprido', 'nao_aplicavel', 'aguardando',
+            'atingido', 'nao_atingido', 'pendente',
+          ),
+          allowNull: false,
+          defaultValue: 'aguardando',
         },
         faixa_producao: { type: DataTypes.ENUM('acima_meta', 'entre_85_100', 'entre_70_84', 'abaixo_70') },
         status_implantacao: { type: DataTypes.ENUM('nao_iniciado', 'em_prazo', 'cumprido', 'vencido') },

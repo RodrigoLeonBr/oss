@@ -91,29 +91,31 @@ class TokenService {
      * @returns {Promise<Object>}
      */
     generateAuthTokens = async (user) => {
+        const userId = user.usuario_id || user.uuid;
+
         const accessTokenExpires = moment().add(config.jwt.accessExpirationMinutes, 'minutes');
         const accessToken = await this.generateToken(
-            user.uuid,
+            userId,
             accessTokenExpires,
             tokenTypes.ACCESS,
         );
         const refreshTokenExpires = moment().add(config.jwt.refreshExpirationDays, 'days');
         const refreshToken = await this.generateToken(
-            user.uuid,
+            userId,
             refreshTokenExpires,
             tokenTypes.REFRESH,
         );
         const authTokens = [];
         authTokens.push({
             token: accessToken,
-            user_uuid: user.uuid,
+            user_uuid: userId,
             expires: accessTokenExpires.toDate(),
             type: tokenTypes.ACCESS,
             blacklisted: false,
         });
         authTokens.push({
             token: refreshToken,
-            user_uuid: user.uuid,
+            user_uuid: userId,
             expires: refreshTokenExpires.toDate(),
             type: tokenTypes.REFRESH,
             blacklisted: false,
@@ -144,7 +146,7 @@ class TokenService {
                 expires: refreshTokenExpires.toDate(),
             },
         };
-        await this.redisService.createTokens(user.uuid, tokens);
+        await this.redisService.createTokens(userId, tokens);
 
         return tokens;
     };

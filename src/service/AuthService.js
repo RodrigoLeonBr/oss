@@ -1,75 +1,44 @@
 const bcrypt = require('bcryptjs');
 const httpStatus = require('http-status');
-const UserDao = require('../dao/UserDao');
-const TokenDao = require('../dao/TokenDao');
-const { tokenTypes } = require('../config/tokens');
 const responseHandler = require('../helper/responseHandler');
 const logger = require('../config/logger');
-const RedisService = require('./RedisService');
+const models = require('../models');
+
+const Usuario = models.usuario;
 
 class AuthService {
-    constructor() {
-        this.userDao = new UserDao();
-        this.tokenDao = new TokenDao();
-        this.redisService = new RedisService();
-    }
-
-    /**
-     * Create a user
-     * @param {String} email
-     * @param {String} password
-     * @returns {Promise<{response: {code: *, message: *, status: boolean}, statusCode: *}>}
-     */
     loginWithEmailPassword = async (email, password) => {
         try {
-            let message = 'Login Successful';
-            let statusCode = httpStatus.OK;
-            let user = await this.userDao.findByEmail(email);
-            if (user == null) {
+            const user = await Usuario.findOne({ where: { email, ativo: 1 } });
+
+            if (!user) {
                 return responseHandler.returnError(
                     httpStatus.BAD_REQUEST,
-                    'Invalid Email Address!',
+                    'E-mail não cadastrado ou inativo.',
                 );
             }
-            const isPasswordValid = await bcrypt.compare(password, user.password);
-            user = user.toJSON();
-            delete user.password;
 
+            const isPasswordValid = await bcrypt.compare(password, user.senha_hash);
             if (!isPasswordValid) {
-                statusCode = httpStatus.BAD_REQUEST;
-                message = 'Wrong Password!';
-                return responseHandler.returnError(statusCode, message);
+                return responseHandler.returnError(
+                    httpStatus.BAD_REQUEST,
+                    'Senha incorreta.',
+                );
             }
 
-            return responseHandler.returnSuccess(statusCode, message, user);
+            const data = user.toJSON();
+            delete data.senha_hash;
+            delete data.token_2fa;
+
+            return responseHandler.returnSuccess(httpStatus.OK, 'Login Successful', data);
         } catch (e) {
             logger.error(e);
-            return responseHandler.returnError(httpStatus.BAD_GATEWAY, 'Something Went Wrong!!');
+            return responseHandler.returnError(httpStatus.BAD_GATEWAY, 'Erro interno no login.');
         }
     };
 
-    logout = async (req, res) => {
-        const refreshTokenDoc = await this.tokenDao.findOne({
-            token: req.body.refresh_token,
-            type: tokenTypes.REFRESH,
-            blacklisted: false,
-        });
-        if (!refreshTokenDoc) {
-            return false;
-        }
-        await this.tokenDao.remove({
-            token: req.body.refresh_token,
-            type: tokenTypes.REFRESH,
-            blacklisted: false,
-        });
-        await this.tokenDao.remove({
-            token: req.body.access_token,
-            type: tokenTypes.ACCESS,
-            blacklisted: false,
-        });
-        await this.redisService.removeToken(req.body.access_token, 'access_token');
-        await this.redisService.removeToken(req.body.refresh_token, 'refresh_token');
-        return true;
+    logout = async (refreshToken) => {
+        return responseHandler.returnSuccess(httpStatus.OK, 'Logout realizado.');
     };
 }
 

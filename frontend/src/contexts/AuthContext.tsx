@@ -1,6 +1,5 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react'
 import type { Usuario, Perfil } from '../types'
-import { mockUsuarios } from '../data/mock'
 
 interface AuthState {
   user: Usuario | null
@@ -22,21 +21,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [auth, setAuth] = useState<AuthState>(() => {
     const saved = localStorage.getItem('oss_auth')
     if (saved) {
-      try {
-        return JSON.parse(saved)
-      } catch {
-        return { user: null, token: null, isAuthenticated: false }
-      }
+      try { return JSON.parse(saved) } catch { /* fall through */ }
     }
     return { user: null, token: null, isAuthenticated: false }
   })
 
-  const [darkMode, setDarkMode] = useState(() => {
-    const saved = localStorage.getItem('oss_dark_mode') === 'true'
-    if (saved) document.documentElement.setAttribute('data-theme', 'dark')
-    return saved
-  })
+  const [darkMode, setDarkMode] = useState(
+    () => localStorage.getItem('oss_dark_mode') === 'true',
+  )
 
+  // Single source of truth for the data-theme attribute and localStorage sync.
+  // Keep DOM mutations out of the useState initializer (runs before commit, twice in StrictMode).
   useEffect(() => {
     if (darkMode) {
       document.documentElement.setAttribute('data-theme', 'dark')
@@ -54,14 +49,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [auth])
 
-  const login = useCallback(async (email: string, _password: string) => {
-    // MVP: mock login — in production, call POST /api/auth/login
-    const mockUser = mockUsuarios.find(u => u.email === email)
-    if (!mockUser) {
-      throw new Error('Credenciais inválidas')
+  const login = useCallback(async (email: string, password: string) => {
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      throw new Error(body.message || 'Credenciais inválidas')
     }
-    const fakeToken = btoa(JSON.stringify({ usuario_id: mockUser.usuario_id, perfil: mockUser.perfil, exp: Date.now() + 3600000 }))
-    setAuth({ user: mockUser, token: fakeToken, isAuthenticated: true })
+    const body = await res.json()
+    // Backend returns: { data: { ...user }, tokens: { access: { token }, refresh: { token } } }
+    const user: Usuario = body.data
+    const token: string = body.tokens.access.token
+    setAuth({ user, token, isAuthenticated: true })
+  }, [])
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return
+    if (auth.isAuthenticated) return
+    const devEmail = import.meta.env.VITE_DEV_EMAIL
+    const devPassword = import.meta.env.VITE_DEV_PASSWORD
+    if (!devEmail || !devPassword) return
+    login(devEmail, devPassword).catch((err) => {
+      console.warn('[DEV] Auto-login failed:', err.message)
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const logout = useCallback(() => {
@@ -77,15 +91,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [auth.user],
   )
 
+  // DOM attribute is managed exclusively by the useEffect above; no direct writes here.
   const toggleDarkMode = useCallback(() => {
-    const next = !darkMode
-    if (next) {
-      document.documentElement.setAttribute('data-theme', 'dark')
-    } else {
-      document.documentElement.removeAttribute('data-theme')
-    }
-    setDarkMode(next)
-  }, [darkMode])
+    setDarkMode(prev => !prev)
+  }, [])
 
   return (
     <AuthContext.Provider value={{ ...auth, login, logout, hasPermission, darkMode, toggleDarkMode }}>
