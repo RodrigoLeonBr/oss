@@ -11,6 +11,10 @@ const acompanhamentosRoute = require('./acompanhamentosRoute');
 
 const router = express.Router();
 
+router.get('/health', (_req, res) => {
+    res.status(200).json({ status: 'ok' });
+});
+
 const defaultRoutes = [
     { path: '/auth', route: authRoute },
     { path: '/oss', route: ossRoute },

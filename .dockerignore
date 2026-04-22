@@ -1,8 +1,39 @@
-.dockerignore
+# Dependências (reinstaladas na imagem)
 node_modules
-npm-debug.log
-Dockerfile
+frontend/node_modules
+
+# Build local (a imagem gera o dist no stage frontend-build)
+frontend/dist
+
+# Git e IDE
 .git
-.gitignore
-.npmrc
-README.md
+.github
+.vscode
+.cursor
+.idea
+
+# Ambiente e segredos (use variáveis do compose / .env no host)
+.env
+.env.*
+!env.docker.example
+!.env.example
+
+# Documentação e artefatos locais
+*.md
+docs
+.context
+.coverage
+coverage
+dist
+tmp
+temp
+log
+logs
+**/*.log
+npm-debug.log*
+
+# Testes (não necessários na imagem de runtime)
+specs
+**/*.test.js
+**/*.spec.js
+

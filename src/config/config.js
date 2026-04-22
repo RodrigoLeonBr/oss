@@ -7,12 +7,13 @@ dotenv.config({ path: path.join(__dirname, '../../.env') });
 const envValidation = Joi.object()
     .keys({
         NODE_ENV: Joi.string().valid('development', 'production', 'test').required(),
-        PORT: Joi.number().default(3001),
+        PORT: Joi.number().default(4001),
         DB_HOST: Joi.string().default('localhost'),
         DB_USER: Joi.string().required(),
         // MySQL local (ex.: XAMPP) costuma usar root sem senha — allow('') evita erro no migrate
         DB_PASS: Joi.string().allow('').default(''),
         DB_NAME: Joi.string().required(),
+        DB_PORT: Joi.number().default(3306).description('MySQL port (not the HTTP API port)'),
         JWT_SECRET: Joi.string().required().description('JWT secret key'),
         JWT_ACCESS_EXPIRATION_MINUTES: Joi.number()
             .default(30)
@@ -51,6 +52,7 @@ module.exports = {
     dbUser: envVar.DB_USER,
     dbPass: envVar.DB_PASS,
     dbName: envVar.DB_NAME,
+    dbPort: envVar.DB_PORT,
     jwt: {
         secret: envVar.JWT_SECRET,
         accessExpirationMinutes: envVar.JWT_ACCESS_EXPIRATION_MINUTES,

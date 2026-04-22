@@ -358,7 +358,7 @@ git commit -m "refactor(auth): passport loads Usuario from tb_usuarios"
 - [ ] **Step 1: Testar o endpoint de login via curl**
 
 ```bash
-curl -s -X POST http://localhost:5000/api/auth/login \
+curl -s -X POST http://localhost:4001/api/auth/login \
   -H "Content-Type: application/json" \
   -d "{\"email\":\"admin@americana.sp.gov.br\",\"password\":\"Oss@2026\"}" \
   | node -e "const d=require('fs').readFileSync('/dev/stdin','utf8'); const j=JSON.parse(d); console.log('status:', j.status, '| perfil:', j.data?.perfil, '| token:', j.tokens?.access?.token?.slice(0,20)+'...')"
@@ -372,12 +372,12 @@ status: true | perfil: admin | token: eyJhbGciOiJIUzI1NiIs...
 - [ ] **Step 2: Testar uma rota autenticada com o token obtido**
 
 ```bash
-TOKEN=$(curl -s -X POST http://localhost:5000/api/auth/login \
+TOKEN=$(curl -s -X POST http://localhost:4001/api/auth/login \
   -H "Content-Type: application/json" \
   -d "{\"email\":\"admin@americana.sp.gov.br\",\"password\":\"Oss@2026\"}" \
   | node -e "process.stdin.resume();let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>console.log(JSON.parse(d).tokens.access.token))")
 
-curl -s http://localhost:5000/api/unidades?ativo=1 \
+curl -s http://localhost:4001/api/unidades?ativo=1 \
   -H "Authorization: Bearer $TOKEN" \
   | node -e "const d=require('fs').readFileSync('/dev/stdin','utf8'); const j=JSON.parse(d); console.log('unidades:', Array.isArray(j.data) ? j.data.length : j)"
 ```

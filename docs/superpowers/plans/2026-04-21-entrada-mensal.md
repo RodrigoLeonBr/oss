@@ -14,7 +14,7 @@
 
 - **Migrations:** `src/db/migrations/YYYYMMDDHHMMSS-<nome>.js` — padrão `module.exports = { async up(queryInterface, Sequelize){}, async down(queryInterface){} }`
 - **Rodar migrations:** `npm run db:migrate` na raiz
-- **Backend dev:** `npm run dev:backend` (porta 3001)
+- **Backend dev:** `npm run dev:backend` (porta 4001)
 - **Frontend dev:** `npm run dev:frontend` (Vite, porta 5173)
 - **Testes backend:** `npm test` (mocha, specs/`**/*.spec.js`)
 - **Controller pattern:** classe com arrow-function methods, `require` do service no topo, formato de resposta `{ status: true, data: ... }`
@@ -852,7 +852,7 @@ npm run dev:backend
 
 # Em outro terminal — liste (substitua o JWT pelo seu token)
 curl -H "Authorization: Bearer SEU_JWT" \
-  "http://localhost:3001/api/v1/acompanhamentos?unidadeId=u1111111-1111-1111-1111-111111111111"
+  "http://localhost:4001/api/v1/acompanhamentos?unidadeId=u1111111-1111-1111-1111-111111111111"
 ```
 
 Esperado: JSON `{ status: true, data: [...] }` com um objeto por indicador da unidade.

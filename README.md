@@ -80,16 +80,16 @@ npm run db:seed
 cat > frontend/.env.development << EOF
 VITE_DEV_EMAIL=admin@americana.sp.gov.br
 VITE_DEV_PASSWORD=Oss@2026
-VITE_API_URL=http://localhost:5000
+VITE_API_URL=http://localhost:4001
 EOF
 
 # 8. Iniciar o backend
 npm start
-# API em http://localhost:5000
+# API em http://localhost:4001
 
 # 9. Em outro terminal, iniciar o frontend
 cd frontend && npm run dev
-# Frontend em http://localhost:3000
+# Frontend em http://localhost:4000
 ```
 
 > O frontend faz **auto-login automático** em DEV com as credenciais de `frontend/.env.development`, usando autenticação real contra `tb_usuarios`.
@@ -98,19 +98,45 @@ cd frontend && npm run dev
 
 ## Configuração com Docker
 
+A imagem aplica o **build do frontend (Vite)** e o **Express** na mesma API: em produção o site estático fica em `frontend/dist` e a API em `/api` (veja `src/app.js` e `Dockerfile` multi-stage).
+
+**1. Pré-requisito:** [Docker](https://docs.docker.com/get-docker/) com plugin Compose (comando `docker compose`).
+
+**2. Variáveis (obrigatório: `JWT_SECRET`):**
+
 ```bash
-# Subir todos os serviços (MySQL, Redis, backend, frontend)
-docker compose up -d
-
-# Executar migrações e seeds no container
-docker compose exec app npm run db:migrate
-docker compose exec app npm run db:seed
-
-# Acompanhar logs
-docker compose logs -f app
+cp env.docker.example .env
+# Edite e defina JWT_SECRET; ajuste DB_PASS / DB_NAME se necessário
 ```
 
-> O arquivo `docker-compose.yml` na raiz do projeto configura automaticamente MySQL, Redis e a aplicação.
+O compose usa o arquivo `.env` na raiz para expandir `JWT_SECRET`, `DB_USER`, `DB_PASS`, etc. No container, o backend enxerga o MySQL no host `db` e o Redis no host `redis` (porta MySQL **3306** no rede interna — use `DB_PORT=3306`).
+
+**3. Compilar a imagem e subir os serviços:**
+
+```bash
+docker compose build --no-cache
+docker compose up -d
+```
+
+**4. Criar tabelas e dados iniciais (após o `app` estar saudável):**
+
+```bash
+docker compose exec app npm run db:migrate
+docker compose exec app npm run db:seed
+```
+
+**5. Acessar a aplicação:** `http://localhost:4001` (porta padrão do `PORT` no `docker-compose`).
+
+| Comando | Descrição |
+|--------|------------|
+| `docker compose build` | Rebuilda a imagem (frontend + API) |
+| `docker compose up -d` | Sobe `db`, `redis` e `app` em segundo plano |
+| `docker compose ps` | Estado dos contêineres |
+| `docker compose logs -f app` | Logs do backend + requests |
+| `docker compose down` | Para e remove contêineres (mantém volumes do MySQL/Redis) |
+| `npm run docker:up` (na raiz) | Atalho: `up -d` via `package.json` |
+
+> Scripts `npm` na raiz: `docker:build`, `docker:up`, `docker:down`, `docker:logs`, `docker:migrate`, `docker:seed` — atalhos para `docker compose` + `exec`.
 
 ---
 
@@ -121,10 +147,11 @@ Copie `.env.example` para `.env` e ajuste os valores:
 ```dotenv
 # Servidor
 NODE_ENV=development
-PORT=5000
+PORT=4001
 
 # MySQL
 DB_HOST=localhost
+DB_PORT=3306
 DB_USER=root
 DB_PASS=
 DB_NAME=oss
@@ -151,7 +178,7 @@ REDIS_PASSWORD=
 ```dotenv
 VITE_DEV_EMAIL=admin@americana.sp.gov.br
 VITE_DEV_PASSWORD=Oss@2026
-VITE_API_URL=http://localhost:5000
+VITE_API_URL=http://localhost:4001
 ```
 
 ---
@@ -161,7 +188,7 @@ VITE_API_URL=http://localhost:5000
 ### Backend (raiz)
 
 ```bash
-npm start                   # Servidor Express (porta 5000)
+npm start                   # Servidor Express (porta 4001)
 npm test                    # Testes Jest
 npm run db:migrate          # Aplica migrações pendentes
 npm run db:migrate:undo     # Desfaz última migração
@@ -172,17 +199,30 @@ npm run db:seed:undo        # Remove dados de seed
 ### Frontend (`cd frontend`)
 
 ```bash
-npm run dev                 # Dev server Vite (porta 3000, proxy /api → :5000)
+npm run dev                 # Dev server Vite (porta 4000, proxy /api → :4001)
 npm run build               # Build produção (tsc + vite build com Rolldown)
 npm run preview             # Preview do build de produção
 npx tsc --noEmit            # Verificação TypeScript (zero erros obrigatório)
+```
+
+### Docker (raiz, após `cp env.docker.example .env`)
+
+```bash
+npm run docker:build         # docker compose build
+npm run docker:up            # sobe app + db + redis
+npm run docker:down
+npm run docker:logs          # logs -f do serviço app
+npm run docker:migrate
+npm run docker:seed
 ```
 
 ---
 
 ## API — Endpoints
 
-Base URL: `http://localhost:5000/api`
+Base URL: `http://localhost:4001/api`
+
+> **Operações / Docker:** `GET /api/health` responde `200` com `{"status":"ok"}` (usado no healthcheck do contêiner).
 
 ### Autenticação (`/api/auth`)
 
