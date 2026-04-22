@@ -1,6 +1,5 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react'
 import type { Usuario, Perfil } from '../types'
-import { mockUsuarios } from '../data/mock'
 
 interface AuthState {
   user: Usuario | null
@@ -18,20 +17,11 @@ interface AuthContextType extends AuthState {
 
 const AuthContext = createContext<AuthContextType | null>(null)
 
-function makeToken(u: Usuario) {
-  return btoa(JSON.stringify({ usuario_id: u.usuario_id, perfil: u.perfil, exp: Date.now() + 3_600_000 }))
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [auth, setAuth] = useState<AuthState>(() => {
     const saved = localStorage.getItem('oss_auth')
     if (saved) {
       try { return JSON.parse(saved) } catch { /* fall through */ }
-    }
-    // Dev: auto-login as admin so SidebarMenu is always visible during development
-    if (import.meta.env.DEV) {
-      const admin = mockUsuarios.find(u => u.perfil === 'admin')
-      if (admin) return { user: admin, token: makeToken(admin), isAuthenticated: true }
     }
     return { user: null, token: null, isAuthenticated: false }
   })
@@ -59,13 +49,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [auth])
 
-  const login = useCallback(async (email: string, _password: string) => {
-    // MVP: mock login — in production, call POST /api/auth/login
-    const mockUser = mockUsuarios.find(u => u.email === email)
-    if (!mockUser) {
-      throw new Error('Credenciais inválidas')
+  const login = useCallback(async (email: string, password: string) => {
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      throw new Error(body.message || 'Credenciais inválidas')
     }
-    setAuth({ user: mockUser, token: makeToken(mockUser), isAuthenticated: true })
+    const body = await res.json()
+    // Backend returns: { data: { ...user }, tokens: { access: { token }, refresh: { token } } }
+    const user: Usuario = body.data
+    const token: string = body.tokens.access.token
+    setAuth({ user, token, isAuthenticated: true })
+  }, [])
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return
+    if (auth.isAuthenticated) return
+    const devEmail = import.meta.env.VITE_DEV_EMAIL
+    const devPassword = import.meta.env.VITE_DEV_PASSWORD
+    if (!devEmail || !devPassword) return
+    login(devEmail, devPassword).catch((err) => {
+      console.warn('[DEV] Auto-login failed:', err.message)
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const logout = useCallback(() => {
