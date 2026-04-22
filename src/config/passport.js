@@ -1,12 +1,12 @@
 const { Strategy: JwtStrategy, ExtractJwt } = require('passport-jwt');
-const UserDao = require('../dao/UserDao');
 const config = require('./config');
 const { tokenTypes } = require('./tokens');
 const TokenDao = require('../dao/TokenDao');
 const RedisService = require('../service/RedisService');
 const models = require('../models');
 
-const User = models.user;
+const Usuario = models.usuario;
+
 const jwtOptions = {
     secretOrKey: config.jwt.secret,
     jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
@@ -18,18 +18,21 @@ const jwtVerify = async (req, payload, done) => {
         if (payload.type !== tokenTypes.ACCESS) {
             throw new Error('Invalid token type');
         }
-        const userDao = new UserDao();
-        const tokenDao = new TokenDao();
-        const redisService = new RedisService();
-        const authorization =
-            req.headers.authorization !== undefined ? req.headers.authorization.split(' ') : [];
-        if (authorization[1] === undefined) {
+
+        const authorization = req.headers.authorization
+            ? req.headers.authorization.split(' ')
+            : [];
+
+        if (!authorization[1]) {
             return done(null, false);
         }
 
+        // Verificar token no Redis (cache) ou no banco
+        const redisService = new RedisService();
+        const tokenDao = new TokenDao();
+
         let tokenDoc = redisService.hasToken(authorization[1], 'access_token');
         if (!tokenDoc) {
-            console.log('Cache Missed!');
             tokenDoc = await tokenDao.findOne({
                 token: authorization[1],
                 type: tokenTypes.ACCESS,
@@ -40,16 +43,11 @@ const jwtVerify = async (req, payload, done) => {
         if (!tokenDoc) {
             return done(null, false);
         }
-        let user = await redisService.getUser(payload.sub);
-        if (user) {
-            user = new User(user);
-        }
 
-        if (!user) {
-            console.log('User Cache Missed!');
-            user = await userDao.findOneByWhere({ uuid: payload.sub });
-            redisService.setUser(user);
-        }
+        // Carregar usuário de tb_usuarios por usuario_id
+        const user = await Usuario.findOne({
+            where: { usuario_id: payload.sub, ativo: 1 },
+        });
 
         if (!user) {
             return done(null, false);
@@ -57,13 +55,11 @@ const jwtVerify = async (req, payload, done) => {
 
         done(null, user);
     } catch (error) {
-        console.log(error);
+        console.error('[passport jwtVerify]', error.message);
         done(error, false);
     }
 };
 
 const jwtStrategy = new JwtStrategy(jwtOptions, jwtVerify);
 
-module.exports = {
-    jwtStrategy,
-};
+module.exports = { jwtStrategy };
