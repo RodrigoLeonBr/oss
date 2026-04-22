@@ -13,6 +13,11 @@ class Meta extends Model {
         meta_mensal: DataTypes.DECIMAL(15, 4),
         meta_anual: DataTypes.DECIMAL(15, 4),
         meta_valor_qualit: DataTypes.DECIMAL(15, 4),
+        meta_tipo: {
+          type: DataTypes.ENUM('maior_igual', 'menor_igual'),
+          allowNull: false,
+          defaultValue: 'maior_igual',
+        },
         meta_minima: DataTypes.DECIMAL(15, 4),
         meta_parcial: DataTypes.DECIMAL(15, 4),
         unidade_medida: DataTypes.STRING(50),
