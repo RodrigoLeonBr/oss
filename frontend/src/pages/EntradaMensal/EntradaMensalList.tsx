@@ -1,7 +1,7 @@
 // frontend/src/pages/EntradaMensal/EntradaMensalList.tsx
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom'
-import { List } from 'react-window'
+import { List, type RowComponentProps } from 'react-window'
 import { ArrowLeft, Loader2 } from 'lucide-react'
 import type { AcompanhamentoRecord } from './types'
 import { STATUS_LABELS, STATUS_BADGE, mockAcompanhamentos, unwrap } from './types'
@@ -18,14 +18,8 @@ interface RowData {
   onAbrir: (a: AcompanhamentoRecord) => void
 }
 
-interface RowProps {
-  index: number
-  style: React.CSSProperties
-  data: RowData
-}
-
-function Row({ index, style, data }: RowProps) {
-  const a = data.itens[index]
+function Row({ index, style, itens, onAbrir }: RowComponentProps<RowData>) {
+  const a = itens[index]
   const perc = a.percentualCumprimento
   const percCls =
     a.statusCumprimento === 'atingido'     ? 'text-status-ok' :
@@ -63,7 +57,7 @@ function Row({ index, style, data }: RowProps) {
       </div>
       <div className="w-[72px] shrink-0 flex justify-end">
         <button
-          onClick={() => data.onAbrir(a)}
+          onClick={() => onAbrir(a)}
           className={[
             'rounded-lg px-2 py-1 text-xs font-medium transition-colors',
             a.id === null
@@ -249,11 +243,11 @@ export default function EntradaMensalList() {
                 <div className="w-[72px] shrink-0" />
               </div>
               {/* Body */}
-              <List
+              <List<RowData>
                 rowComponent={Row}
                 rowCount={filtrados.length}
                 rowHeight={ROW_HEIGHT}
-                height={Math.min(filtrados.length * ROW_HEIGHT, 520)}
+                style={{ height: Math.min(filtrados.length * ROW_HEIGHT, 520) }}
                 rowProps={{ itens: filtrados, onAbrir: setModal }}
               />
             </div>
