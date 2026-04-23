@@ -90,16 +90,15 @@ Existing table already has `senha_hash`, `perfil`, `oss_id`, `ativo`. Only the b
 
 ## 4. Backend
 
-### 4.1 Auth wiring fix
+### 4.1 Auth wiring — already done ✅
 
-`AuthService.loginWithEmailPassword` currently uses the old `User` model (`password`, `uuid`). Must be updated to:
-- Query `Usuario` (tb_usuarios) by email
-- Compare plaintext password against `senha_hash` with bcrypt
-- Return `usuario_id`, `perfil`, `oss_id`, `nome`, `email` in JWT payload
+`AuthService.loginWithEmailPassword` already uses `Usuario` model, compares against `senha_hash` with bcrypt, strips `senha_hash`/`token_2fa` from response.
 
-`UserService.getUserByUuid` → replace with `UsuarioService.getUsuarioById(usuario_id)` in token refresh flow.
+`passport.js` already hydrates `req.user` from `tb_usuarios` via `Usuario.findOne({ usuario_id: payload.sub, ativo: 1 })`.
 
-Passport JWT strategy config must extract `usuario_id` (not `uuid`) from token payload and hydrate `req.user` from `tb_usuarios`.
+`TokenService.generateAuthTokens` already uses `user.usuario_id` as `sub` in JWT payload.
+
+**One minor fix needed:** `AuthController.refreshTokens` calls `this.userService.getUserByUuid(refreshTokenDoc.user_uuid)` which uses the old `User` model. Must be updated to query `Usuario` by `usuario_id` directly.
 
 ### 4.2 New: `UsuarioService.js`
 
@@ -259,10 +258,12 @@ export interface PermissaoPerfil {
 - `src/models/PermissaoPerfil.js`
 - `src/route/usuarioRoute.js`
 - `src/route/permissaoRoute.js`
-- Update `src/service/AuthService.js` — wire to Usuario model
-- Update `src/config/passport.js` (or equivalent) — use usuario_id in JWT payload
-- Update `src/middlewares/rbac.js` — add `checkPermission`
-- Update `src/app.js` or router index — register new routes
+
+### Files to update (backend)
+- `src/controllers/AuthController.js` — fix `refreshTokens` to use `Usuario` model instead of old `UserService.getUserByUuid`; add `me/permissions` action
+- `src/route/authRoute.js` — add `GET /me/permissions` route
+- `src/middlewares/rbac.js` — add `checkPermission(modulo, action)` middleware
+- `src/app.js` — register usuarioRoute, permissaoRoute
 
 ### Files to create (frontend)
 - `frontend/src/hooks/usePermission.ts`
