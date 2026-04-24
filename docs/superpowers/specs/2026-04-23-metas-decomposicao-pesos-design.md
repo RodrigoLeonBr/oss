@@ -1,7 +1,9 @@
 # Metas — decomposição por indicador, pesos e cumprimento ponderado
 
 **Data:** 2026-04-23  
-**Status:** Draft (revisão de produto)
+**Status:** Approved  
+
+**Plano de implementação:** [docs/superpowers/plans/2026-04-23-metas-decomposicao-pesos.md](../plans/2026-04-23-metas-decomposicao-pesos.md)
 
 ---
 
