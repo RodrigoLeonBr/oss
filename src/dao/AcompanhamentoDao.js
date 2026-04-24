@@ -7,10 +7,12 @@ class AcompanhamentoDao extends SuperDao {
         super(db.acompanhamento_mensal);
     }
 
-    async findByMesEIndicador(mesReferencia, indicadorId) {
-        return db.acompanhamento_mensal.findOne({
-            where: { mes_referencia: mesReferencia, indicador_id: indicadorId },
-        });
+    async findByMesEIndicador(mesReferencia, indicadorId, metaId = null) {
+        const where = { mes_referencia: mesReferencia, indicador_id: indicadorId };
+        if (metaId) {
+            where.meta_id = metaId;
+        }
+        return db.acompanhamento_mensal.findOne({ where });
     }
 
     async findByMes(mesReferencia, where = {}) {

@@ -73,6 +73,9 @@ const EMPTY: IndicadorFormData = {
   tipo:          'producao',
   metaPadrao:    '',
   unidadeMedida: '',
+  vigenciaInicio: '2026-01-01',
+  vigenciaFim:     '',
+  prazoImplantacao: '',
   status:        'ativo',
 }
 
@@ -90,6 +93,9 @@ export default function IndicadoresFormModal({ indicador, unidadeId, onSalvo, on
           tipo:          indicador.tipo,
           metaPadrao:    indicador.metaPadrao != null ? String(indicador.metaPadrao) : '',
           unidadeMedida: indicador.unidadeMedida ?? '',
+          vigenciaInicio: indicador.vigenciaInicio ?? '2026-01-01',
+          vigenciaFim:   indicador.vigenciaFim ?? '',
+          prazoImplantacao: indicador.prazoImplantacao ?? '',
           status:        indicador.status,
         }
       : EMPTY,
@@ -146,6 +152,10 @@ export default function IndicadoresFormModal({ indicador, unidadeId, onSalvo, on
       e.unidadeMedida = 'Unidade de medida é obrigatória'
     }
 
+    if (!form.vigenciaInicio.trim()) {
+      e.vigenciaInicio = 'Início da vigência é obrigatório'
+    }
+
     setErros(e)
     return Object.keys(e).length === 0
   }
@@ -162,6 +172,9 @@ export default function IndicadoresFormModal({ indicador, unidadeId, onSalvo, on
       tipo:          form.tipo,
       metaPadrao:    parseFloat(form.metaPadrao),
       unidadeMedida: form.unidadeMedida.trim(),
+      vigenciaInicio: form.vigenciaInicio.trim(),
+      vigenciaFim:   form.vigenciaFim.trim() || null,
+      prazoImplantacao: form.prazoImplantacao.trim() || null,
       status:        form.status,
     }
 
@@ -201,7 +214,11 @@ export default function IndicadoresFormModal({ indicador, unidadeId, onSalvo, on
       }
 
       // ── Mensagens em português ──────────────────────────────────────────────
-      if (status === 409 || rawMsg.toLowerCase().includes('nome')) {
+      if (status === 401) {
+        setApiError(
+          'Sessão inválida ou expirada, ou o token não foi enviado. Faça login novamente (limpe o cache do site se o problema continuar) e tente de novo.',
+        )
+      } else if (status === 409 || rawMsg.toLowerCase().includes('nome')) {
         setErros(prev => ({ ...prev, nome: 'Já existe um indicador com este nome nesta unidade' }))
       } else if (status === 404) {
         setApiError('Indicador ou unidade não encontrado. Atualize a página e tente novamente.')
@@ -362,6 +379,51 @@ export default function IndicadoresFormModal({ indicador, unidadeId, onSalvo, on
                   />
                 </Field>
               </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <Field
+                  id="indicador-vigencia-ini"
+                  label="Início da vigência"
+                  required
+                  error={erros.vigenciaInicio}
+                  hint="Aplica às metas vinculadas a este indicador"
+                >
+                  <input
+                    id="indicador-vigencia-ini"
+                    type="date"
+                    value={form.vigenciaInicio}
+                    onChange={e => setField('vigenciaInicio', e.target.value)}
+                    className={inputCls(!!erros.vigenciaInicio)}
+                  />
+                </Field>
+                <Field
+                  id="indicador-vigencia-fim"
+                  label="Fim da vigência"
+                  hint="Opcional — em branco = vigência aberta"
+                >
+                  <input
+                    id="indicador-vigencia-fim"
+                    type="date"
+                    value={form.vigenciaFim}
+                    onChange={e => setField('vigenciaFim', e.target.value)}
+                    className={inputCls(false)}
+                  />
+                </Field>
+              </div>
+
+              <Field
+                id="indicador-prazo-impl"
+                label="Prazo de implantação"
+                hint="Opcional — data prevista no contrato"
+              >
+                <input
+                  id="indicador-prazo-impl"
+                  type="date"
+                  value={form.prazoImplantacao}
+                  onChange={e => setField('prazoImplantacao', e.target.value)}
+                  className={inputCls(false)}
+                />
+              </Field>
 
               {/* Meta Padrão + Status */}
               <div className="grid grid-cols-2 gap-4">

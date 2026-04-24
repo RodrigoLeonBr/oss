@@ -1,6 +1,12 @@
 const httpStatus = require('http-status');
 const AcompanhamentoDao = require('../dao/AcompanhamentoDao');
 const ApiError = require('../helper/ApiError');
+const {
+    assertIndicadorNoEscopoOSS,
+    assertMetaNoEscopoOSS,
+    assertAcompanhamentoNoEscopoOSS,
+    resolverContratoIdParaEscopoProprio,
+} = require('../helper/ossScopeHelper');
 const db = require('../models');
 const logger = require('../config/logger');
 
@@ -26,18 +32,27 @@ const obterMetaVigente = async (indicadorId, mesReferencia) => {
         where: {
             indicador_id: indicadorId,
         },
-        order: [['vigencia_inicio', 'DESC']],
+        order: [['versao', 'DESC'], ['criado_em', 'DESC']],
     });
 };
 
-const criarOuAtualizar = async (dados, usuarioId) => {
+const criarOuAtualizar = async (dados, usuarioId, ossIdFiltro = null) => {
     const { indicador_id, meta_id, mes_referencia, valor_realizado, descricao_desvios, meta_vigente_mensal, meta_vigente_qualit } = dados;
+
+    await assertIndicadorNoEscopoOSS(indicador_id, ossIdFiltro);
 
     const indicador = await db.indicador.findOne({ where: { indicador_id }, paranoid: false });
     if (!indicador) throw new ApiError(httpStatus.NOT_FOUND, 'Indicador não encontrado');
 
     const meta = await db.meta.findOne({ where: { meta_id } });
     if (!meta) throw new ApiError(httpStatus.NOT_FOUND, 'Meta não encontrada');
+    if (meta.papel === 'agregada') {
+        throw new ApiError(
+            httpStatus.BAD_REQUEST,
+            'Use metas componentes; meta agregada não recebe acompanhamento.',
+        );
+    }
+    await assertMetaNoEscopoOSS(meta_id, ossIdFiltro);
 
     const metaMensal = meta_vigente_mensal || parseFloat(meta.meta_mensal) || 0;
     const percentual = metaMensal > 0 ? parseFloat(((valor_realizado / metaMensal) * 100).toFixed(4)) : null;
@@ -57,7 +72,11 @@ const criarOuAtualizar = async (dados, usuarioId) => {
         status_aprovacao: 'submetido',
     };
 
-    const existente = await acompanhamentoDao.findByMesEIndicador(mes_referencia, indicador_id);
+    const existente = await acompanhamentoDao.findByMesEIndicador(
+        mes_referencia,
+        indicador_id,
+        meta_id,
+    );
     if (existente) {
         await existente.update(payload);
         return existente.reload();
@@ -66,7 +85,8 @@ const criarOuAtualizar = async (dados, usuarioId) => {
     return acompanhamentoDao.create(payload);
 };
 
-const aprovar = async (acompId, auditoraId) => {
+const aprovar = async (acompId, auditoraId, ossIdFiltro = null) => {
+    await assertAcompanhamentoNoEscopoOSS(acompId, ossIdFiltro);
     const registro = await db.acompanhamento_mensal.findOne({ where: { acomp_id: acompId } });
     if (!registro) throw new ApiError(httpStatus.NOT_FOUND, 'Acompanhamento não encontrado');
 
@@ -79,7 +99,8 @@ const aprovar = async (acompId, auditoraId) => {
     return registro.reload();
 };
 
-const rejeitar = async (acompId, auditoraId, motivo) => {
+const rejeitar = async (acompId, auditoraId, motivo, ossIdFiltro = null) => {
+    await assertAcompanhamentoNoEscopoOSS(acompId, ossIdFiltro);
     const registro = await db.acompanhamento_mensal.findOne({ where: { acomp_id: acompId } });
     if (!registro) throw new ApiError(httpStatus.NOT_FOUND, 'Acompanhamento não encontrado');
 
@@ -93,11 +114,13 @@ const rejeitar = async (acompId, auditoraId, motivo) => {
     return registro.reload();
 };
 
-const calcularDescontosDoMes = async (mesReferencia, contratoId) => {
+const calcularDescontosDoMes = async (mesReferencia, contratoId, ossIdFiltro = null) => {
     logger.info(`[DESCONTO] Iniciando cálculo para ${mesReferencia}`);
 
+    const cid = await resolverContratoIdParaEscopoProprio(contratoId, ossIdFiltro);
+
     const contrato = await db.contrato.findOne({
-        where: { contrato_id: contratoId || undefined, status: 'Ativo' },
+        where: { contrato_id: cid || undefined, status: 'Ativo' },
         include: [{ model: db.unidade, as: 'unidades', include: [{ model: db.bloco_producao, as: 'blocos' }] }],
     });
     if (!contrato) {
@@ -224,9 +247,10 @@ const calcularDescontosDoMes = async (mesReferencia, contratoId) => {
     return { repasse: await repasse.reload(), descontosBloco, descontosIndicador, totalDesconto };
 };
 
-const calcularRepasse = async (mesReferencia, contratoId) => {
+const calcularRepasse = async (mesReferencia, contratoId, ossIdFiltro = null) => {
+    const cid = await resolverContratoIdParaEscopoProprio(contratoId, ossIdFiltro);
     const repasse = await db.repasse_mensal.findOne({
-        where: { mes_referencia: mesReferencia, ...(contratoId && { contrato_id: contratoId }) },
+        where: { mes_referencia: mesReferencia, ...(cid && { contrato_id: cid }) },
         include: [
             { model: db.desconto_bloco, as: 'descontos_bloco', include: [{ model: db.bloco_producao, as: 'bloco' }] },
             { model: db.desconto_indicador, as: 'descontos_indicador', include: [{ model: db.indicador, as: 'indicador' }] },

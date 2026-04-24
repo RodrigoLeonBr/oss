@@ -1,18 +1,18 @@
 const express = require('express');
 const AcompanhamentoController = require('../controllers/AcompanhamentoController');
 const auth = require('../middlewares/auth');
-const { authorize, PERFIS } = require('../middlewares/rbac');
+const { checkPermission } = require('../middlewares/rbac');
 const { auditar } = require('../middlewares/auditoria');
 
 const router = express.Router();
 const controller = new AcompanhamentoController();
 
-router.get('/', auth(), controller.listar);
+router.get('/', auth(), checkPermission('entrada_mensal', 'view'), controller.listar);
 
 router.post(
     '/',
     auth(),
-    authorize(PERFIS.GESTOR_SMS, PERFIS.ADMIN, PERFIS.CONTRATADA_SCMC, PERFIS.CONTRATADA_INDSH),
+    checkPermission('entrada_mensal', 'insert'),
     auditar('tb_acompanhamento_mensal', 'INSERT'),
     controller.criar,
 );
@@ -20,7 +20,7 @@ router.post(
 router.put(
     '/:id/aprovar',
     auth(),
-    authorize(PERFIS.AUDITORA, PERFIS.ADMIN),
+    checkPermission('aprovacao', 'update'),
     auditar('tb_acompanhamento_mensal', 'APPROVE'),
     controller.aprovar,
 );
@@ -28,7 +28,7 @@ router.put(
 router.put(
     '/:id/rejeitar',
     auth(),
-    authorize(PERFIS.AUDITORA, PERFIS.ADMIN),
+    checkPermission('aprovacao', 'update'),
     auditar('tb_acompanhamento_mensal', 'REJECT'),
     controller.rejeitar,
 );
@@ -36,14 +36,14 @@ router.put(
 router.post(
     '/calcular-descontos',
     auth(),
-    authorize(PERFIS.ADMIN, PERFIS.GESTOR_SMS),
+    checkPermission('entrada_mensal', 'update'),
     controller.calcularDescontos,
 );
 
 router.get(
     '/repasse',
     auth(),
-    authorize(PERFIS.ADMIN, PERFIS.GESTOR_SMS, PERFIS.AUDITORA, PERFIS.CMS),
+    checkPermission('relatorios', 'view'),
     controller.repasse,
 );
 

@@ -1,21 +1,21 @@
 const express = require('express');
 const IndicadorController = require('../controllers/IndicadorController');
 const auth = require('../middlewares/auth');
-const { authorize, PERFIS } = require('../middlewares/rbac');
+const { checkPermission } = require('../middlewares/rbac');
 const { auditar } = require('../middlewares/auditoria');
 
 const router = express.Router();
 const controller = new IndicadorController();
 
-// ── Leitura — aberta a todos os perfis autenticados ───────────────────────────
-router.get('/',    auth(), controller.listar);
-router.get('/:id', auth(), controller.buscarPorId);
+// ── Leitura — can_view em módulo indicadores ─────────────────────────────────
+router.get('/',    auth(), checkPermission('indicadores', 'view'), controller.listar);
+router.get('/:id', auth(), checkPermission('indicadores', 'view'), controller.buscarPorId);
 
 // ── Criação — admin e gestor_sms ─────────────────────────────────────────────
 router.post(
     '/',
     auth(),
-    authorize(PERFIS.ADMIN, PERFIS.GESTOR_SMS),
+    checkPermission('indicadores', 'insert'),
     auditar('tb_indicadores', 'INSERT'),
     controller.criar,
 );
@@ -24,7 +24,7 @@ router.post(
 router.put(
     '/:id',
     auth(),
-    authorize(PERFIS.ADMIN, PERFIS.GESTOR_SMS),
+    checkPermission('indicadores', 'update'),
     auditar('tb_indicadores', 'UPDATE'),
     controller.atualizar,
 );
@@ -33,7 +33,7 @@ router.put(
 router.delete(
     '/:id',
     auth(),
-    authorize(PERFIS.ADMIN, PERFIS.GESTOR_SMS),
+    checkPermission('indicadores', 'delete'),
     auditar('tb_indicadores', 'DELETE'),
     controller.remover,
 );

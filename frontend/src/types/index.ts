@@ -27,6 +27,18 @@ export interface Usuario {
   oss_id?: string
   ativo: boolean
   ultimo_acesso?: string
+  organizacao?: { oss_id: string; nome: string }
+}
+
+export interface PermissaoPerfil {
+  perm_id: string
+  perfil: Perfil
+  modulo: string
+  can_view: boolean
+  can_insert: boolean
+  can_update: boolean
+  can_delete: boolean
+  escopo: 'global' | 'proprio'
 }
 
 export interface Oss {

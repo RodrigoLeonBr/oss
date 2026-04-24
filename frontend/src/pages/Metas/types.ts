@@ -1,20 +1,35 @@
+/** Papel da linha na decomposição (API `tb_metas.papel`) */
+export type MetaPapel = 'avulsa' | 'agregada' | 'componente'
+
 // ── Meta record (espelha tb_metas via API) ────────────────────────────────────
 export interface MetaRecord {
   id: string
   indicadorId: string
   versao: number
-  vigenciaInicio: string        // YYYY-MM-DD
+  /** Vigência efetiva vem do indicador (API replica em cada meta) */
+  vigenciaInicio: string | null
   vigenciaFim: string | null
   metaMensal: number | null
   metaAnual: number | null
   metaValorQualit: number | null
+  /** Percentual 0–100 sobre o valor de referência (meta mensal ou meta de qualidade) */
   metaMinima: number | null
+  /** Percentual 0–100 sobre o valor de referência */
   metaParcial: number | null
   metaTipo: 'maior_igual' | 'menor_igual'
   unidadeMedida: string | null
+  /** Nome identificador da linha (obrigatório; substitui o uso de observações como título) */
+  nome: string
   observacoes: string | null
   prazoImplantacao: string | null
   status: 'vigente' | 'encerrada'
+  /** Raiz do pacote; filhas têm o id da agregada */
+  parentMetaId?: string | null
+  papel?: MetaPapel
+  /** Peso relativo do componente (só `componente`) */
+  peso?: number | null
+  children?: MetaRecord[]
+  parent?: MetaRecord
   createdAt?: string
   updatedAt?: string
   indicador?: {
@@ -22,14 +37,16 @@ export interface MetaRecord {
     nome: string
     tipo: 'producao' | 'qualidade'
     unidadeId?: string
+    vigenciaInicio?: string | null
+    vigenciaFim?: string | null
+    prazoImplantacao?: string | null
     unidade?: { id: string; nome: string }
   }
 }
 
 // ── Dados do formulário ────────────────────────────────────────────────────────
 export interface MetaFormData {
-  vigenciaInicio: string
-  vigenciaFim: string
+  nome: string
   metaMensal: string
   metaAnual: string
   metaValorQualit: string
@@ -41,10 +58,13 @@ export interface MetaFormData {
 }
 
 export interface MetaFormErrors {
-  vigenciaInicio?: string
+  indicadorVigencia?: string
+  nome?: string
   metaMensal?: string
   metaAnual?: string
   metaValorQualit?: string
+  metaMinima?: string
+  metaParcial?: string
   unidadeMedida?: string
 }
 
@@ -63,6 +83,33 @@ export const STATUS_DOT: Record<MetaRecord['status'], string> = {
   vigente:   'bg-status-ok',
   encerrada: 'bg-text-faint',
 }
+
+export const PAPEL_LABEL: Record<MetaPapel, string> = {
+  avulsa:      'Avulsa',
+  agregada:    'Pacote',
+  componente:  'Componente',
+}
+
+/** Linha editável no formulário de pacote (POST /metas/pacote) */
+export interface MetaPacoteComponenteForm {
+  nome: string
+  metaMensal: string
+  metaAnual: string
+  peso: string
+  metaMinima: string
+  metaParcial: string
+  observacoes: string
+}
+
+export const emptyComponente = (): MetaPacoteComponenteForm => ({
+  nome: '',
+  metaMensal: '',
+  metaAnual: '',
+  peso: '1',
+  metaMinima: '',
+  metaParcial: '',
+  observacoes: '',
+})
 
 // ── Formatação ─────────────────────────────────────────────────────────────────
 export function formatarValor(v: number | null | undefined): string {
@@ -96,11 +143,12 @@ export const mockMetas: MetaRecord[] = [
     metaMensal: 1200,
     metaAnual: 14400,
     metaValorQualit: null,
-    metaMinima: 840,
-    metaParcial: 1020,
+    metaMinima: 70,
+    metaParcial: 85,
     metaTipo: 'maior_igual',
     unidadeMedida: 'atendimentos',
-    observacoes: 'Meta base revisada para 2026',
+    nome: 'Ocupação leitos — referência 2026',
+    observacoes: 'Ajuste contratual',
     prazoImplantacao: null,
     status: 'vigente',
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -121,10 +169,11 @@ export const mockMetas: MetaRecord[] = [
     metaMensal: 1100,
     metaAnual: 13200,
     metaValorQualit: null,
-    metaMinima: 770,
-    metaParcial: 935,
+    metaMinima: 70,
+    metaParcial: 85,
     metaTipo: 'maior_igual',
     unidadeMedida: 'atendimentos',
+    nome: 'Ocupação leitos — série anterior',
     observacoes: null,
     prazoImplantacao: null,
     status: 'encerrada',
@@ -146,11 +195,12 @@ export const mockMetas: MetaRecord[] = [
     metaMensal: null,
     metaAnual: null,
     metaValorQualit: 30,
-    metaMinima: 45,
-    metaParcial: null,
+    metaMinima: 50,
+    metaParcial: 80,
     metaTipo: 'menor_igual',
     unidadeMedida: 'minutos',
-    observacoes: 'Tempo máximo aceitável para atendimento inicial',
+    nome: 'Tempo de espera — fila classificação',
+    observacoes: 'Informativo operacional',
     prazoImplantacao: null,
     status: 'vigente',
     createdAt: '2026-01-01T00:00:00.000Z',

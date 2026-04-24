@@ -1,26 +1,26 @@
 const express = require('express');
 const DescontoController = require('../controllers/DescontoController');
 const auth = require('../middlewares/auth');
-const { authorize, PERFIS } = require('../middlewares/rbac');
+const { checkPermission } = require('../middlewares/rbac');
 const { auditar } = require('../middlewares/auditoria');
 
 const router = express.Router();
 const controller = new DescontoController();
 
-router.get('/blocos', auth(), controller.listarDescontosBloco);
-router.get('/indicadores', auth(), controller.listarDescontosIndicador);
+router.get('/blocos', auth(), checkPermission('entrada_mensal', 'view'), controller.listarDescontosBloco);
+router.get('/indicadores', auth(), checkPermission('indicadores', 'view'), controller.listarDescontosIndicador);
 
 router.get(
     '/repasse',
     auth(),
-    authorize(PERFIS.ADMIN, PERFIS.GESTOR_SMS, PERFIS.AUDITORA, PERFIS.CMS),
+    checkPermission('relatorios', 'view'),
     controller.repasse,
 );
 
 router.put(
     '/blocos/:id/auditar',
     auth(),
-    authorize(PERFIS.AUDITORA, PERFIS.ADMIN),
+    checkPermission('aprovacao', 'update'),
     auditar('tb_descontos_bloco', 'APPROVE'),
     controller.auditarDescontoBloco,
 );

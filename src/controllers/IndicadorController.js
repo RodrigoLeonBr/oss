@@ -2,6 +2,7 @@ const httpStatus = require('http-status');
 const IndicadorService = require('../service/IndicadorService');
 const { criarIndicador, atualizarIndicador, listarIndicadores } = require('../validator/IndicadorValidator');
 const ApiError = require('../helper/ApiError');
+const { getOssIdSeEscopoProprio } = require('../helper/ossScopeHelper');
 const logger = require('../config/logger');
 
 class IndicadorController {
@@ -9,7 +10,8 @@ class IndicadorController {
         try {
             const { error, value } = listarIndicadores.validate(req.query);
             if (error) return next(new ApiError(httpStatus.BAD_REQUEST, error.details[0].message));
-            const indicadores = await IndicadorService.listar(value);
+            const ossIdFiltro = getOssIdSeEscopoProprio(req);
+            const indicadores = await IndicadorService.listar(value, ossIdFiltro);
             return res.status(httpStatus.OK).json({ status: true, data: indicadores });
         } catch (e) {
             logger.error(e);
@@ -19,7 +21,8 @@ class IndicadorController {
 
     buscarPorId = async (req, res, next) => {
         try {
-            const indicador = await IndicadorService.buscarPorId(req.params.id);
+            const ossIdFiltro = getOssIdSeEscopoProprio(req);
+            const indicador = await IndicadorService.buscarPorId(req.params.id, ossIdFiltro);
             return res.status(httpStatus.OK).json({ status: true, data: indicador });
         } catch (e) {
             logger.error(e);
@@ -31,7 +34,8 @@ class IndicadorController {
         try {
             const { error, value } = criarIndicador.validate(req.body);
             if (error) return next(new ApiError(httpStatus.BAD_REQUEST, error.details[0].message));
-            const indicador = await IndicadorService.criar(value);
+            const ossIdFiltro = getOssIdSeEscopoProprio(req);
+            const indicador = await IndicadorService.criar(value, ossIdFiltro);
             return res.status(httpStatus.CREATED).json({
                 status: true,
                 message: 'Indicador criado com sucesso',
@@ -47,7 +51,8 @@ class IndicadorController {
         try {
             const { error, value } = atualizarIndicador.validate(req.body);
             if (error) return next(new ApiError(httpStatus.BAD_REQUEST, error.details[0].message));
-            const indicador = await IndicadorService.atualizar(req.params.id, value);
+            const ossIdFiltro = getOssIdSeEscopoProprio(req);
+            const indicador = await IndicadorService.atualizar(req.params.id, value, ossIdFiltro);
             return res.status(httpStatus.OK).json({
                 status: true,
                 message: 'Indicador atualizado com sucesso',
@@ -61,7 +66,8 @@ class IndicadorController {
 
     remover = async (req, res, next) => {
         try {
-            await IndicadorService.remover(req.params.id);
+            const ossIdFiltro = getOssIdSeEscopoProprio(req);
+            await IndicadorService.remover(req.params.id, ossIdFiltro);
             return res.status(httpStatus.NO_CONTENT).send();
         } catch (e) {
             logger.error(e);
@@ -72,7 +78,8 @@ class IndicadorController {
     // Legado — mantido para compatibilidade com o ciclo de acompanhamento mensal
     desativar = async (req, res, next) => {
         try {
-            const resultado = await IndicadorService.desativar(req.params.id);
+            const ossIdFiltro = getOssIdSeEscopoProprio(req);
+            const resultado = await IndicadorService.desativar(req.params.id, ossIdFiltro);
             return res.status(httpStatus.OK).json({ status: true, ...resultado });
         } catch (e) {
             logger.error(e);

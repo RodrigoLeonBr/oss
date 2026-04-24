@@ -2,8 +2,9 @@
 ## Sistema de Acompanhamento de Contratos de Gestão em Saúde Pública
 ### Município de Americana/SP
 
-**Versão:** 2.0 | **Atualizado:** Abril/2026  
-**Responsável:** Rodrigo Alexander Diaz Leon, Diretor de Planejamento da SMS Americana
+**Versão:** 2.1 | **Atualizado:** 23 de abril de 2026  
+**Responsável:** Rodrigo Alexander Diaz Leon, Diretor de Planejamento da SMS Americana  
+**Atualização:** decomposição de metas (pai/filhas), unicidade acomp. por (`meta_id`,`mês`), tabela de permissões por perfil — ver [spec metas](superpowers/specs/2026-04-23-metas-decomposicao-pesos-design.md)
 
 ---
 
@@ -31,11 +32,12 @@ erDiagram
     TB_ADITIVOS   ||--o{ TB_HISTORICO_INDICADORES  : "aditivo pode alterar ind"
     TB_INDICADORES ||--o{ TB_METAS           : "1 ind → N metas (por vigência)"
     TB_ADITIVOS   ||--o{ TB_METAS            : "aditivo cria nova meta"
+    TB_METAS      ||--o{ TB_METAS            : "pai agregada → N componentes"
 
     %% ─── GRUPO C: ACOMPANHAMENTO ────────────────────────────────
 
     TB_INDICADORES    ||--o{ TB_ACOMPANHAMENTO_MENSAL : "1 ind → N meses"
-    TB_METAS          ||--o{ TB_ACOMPANHAMENTO_MENSAL : "meta snapshot por mês"
+    TB_METAS          ||--o{ TB_ACOMPANHAMENTO_MENSAL : "1 meta folha → N meses (UK meta+mês)"
     TB_USUARIOS       ||--o{ TB_ACOMPANHAMENTO_MENSAL : "usuário preenche/aprova"
     TB_ACOMPANHAMENTO_MENSAL ||--o{ TB_NOTAS_EXPLICATIVAS : "desvios → notas"
     TB_UNIDADES       ||--o{ TB_CONSOLIDACOES : "1 unidade → N consolidações"
@@ -229,6 +231,9 @@ erDiagram
     TB_METAS {
         CHAR36  meta_id          PK
         CHAR36  indicador_id     FK
+        CHAR36  parent_meta_id   FK "NULL = raiz; filho = componente"
+        ENUM    papel "avulsa | agregada | componente"
+        DEC104  peso "NULL ou >0 se componente"
         CHAR36  aditivo_id       FK "NULL = meta original"
         INT     versao
         DATE    vigencia_inicio
@@ -249,7 +254,7 @@ erDiagram
     TB_ACOMPANHAMENTO_MENSAL {
         CHAR36  acomp_id         PK
         CHAR36  indicador_id     FK
-        CHAR36  meta_id          FK "meta vigente no momento"
+        CHAR36  meta_id          FK "folha: avulsa ou componente; UK (meta_id, mês)"
         DATE    mes_referencia   "YYYY-MM-01"
         DEC154  meta_vigente_mensal "snapshot da meta"
         DEC154  meta_vigente_qualit "snapshot meta qualitativa"
@@ -457,7 +462,20 @@ erDiagram
         DATETIME data_operacao
         TEXT    descricao_mudanca
     }
+
+    TB_PERMISSOES_PERFIL {
+        CHAR36  perm_id         PK
+        ENUM    perfil         "chave lógica com modulo"
+        VARCHAR modulo
+        TINYINT can_view
+        TINYINT can_insert
+        TINYINT can_update
+        TINYINT can_delete
+        ENUM    escopo         "global | proprio"
+    }
 ```
+
+*Nota: `TB_PERMISSOES_PERFIL` não possui FK para `TB_USUARIOS` — o vínculo é pelo valor textual do `perfil` iguais ao enum do usuário; preenchida por seeder e mantida via API administrativa.*
 
 ---
 
@@ -832,7 +850,7 @@ graph TD
 ### Grupo Acompanhamento
 | Tabela | Descrição | Cardinalidade Principal |
 |---|---|---|
-| TB_ACOMPANHAMENTO_MENSAL | Entrada mensal de dados | 1:1 por indicador/mês |
+| TB_ACOMPANHAMENTO_MENSAL | Entrada mensal de dados | 1:1 por **meta folha** / mês (várias metas ativas no mesmo indicador) |
 | TB_NOTAS_EXPLICATIVAS | Justificativas de desvio | N:1 com Acompanhamento |
 | TB_CONSOLIDACOES | Análises trimestrais/quadrimestrais | N:1 com Unidade |
 | TB_CONSOLIDACAO_ITENS | Detalhe por indicador | N:1 com Consolidação |
@@ -872,6 +890,6 @@ flowchart LR
 
 ---
 
-**Versão:** 2.0 | **22 Tabelas** | **4 Fluxos principais** | **2 Modelos de desconto**  
+**Versão:** 2.1 | **22 Tabelas core + `tb_permissoes_perfil`** | **4 Fluxos principais** | **2 Modelos de desconto** | **Metas decompostas (opcional)**  
 **Contratos mapeados:** SCMC 009/2023 (HMA+UNACON+UPA Cillos) · SCMC 066/2024 (UPA Dona Rosa) · INDSH 002/2025 (UPA Zanaga)  
 **Responsável:** Rodrigo Alexander Diaz Leon — SMS Americana

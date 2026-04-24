@@ -1,20 +1,36 @@
 const httpStatus = require('http-status');
 const AcompanhamentoService = require('../service/AcompanhamentoService');
 const ApiError = require('../helper/ApiError');
+const { getOssIdSeEscopoProprio, assertDescontoBlocoNoEscopoOSS } = require('../helper/ossScopeHelper');
 const db = require('../models');
 const logger = require('../config/logger');
 
 class DescontoController {
     listarDescontosBloco = async (req, res, next) => {
         try {
+            const ossIdFiltro = getOssIdSeEscopoProprio(req);
             const where = {};
             if (req.query.mes) where.mes_referencia = req.query.mes;
+
+            const repasseInclude = {
+                model: db.repasse_mensal,
+                as: 'repasse',
+                required: true,
+                attributes: ['repasse_id', 'contrato_id', 'mes_referencia'],
+                include: ossIdFiltro ? [{
+                    model: db.contrato,
+                    as: 'contrato',
+                    required: true,
+                    attributes: ['oss_id'],
+                    where: { oss_id: ossIdFiltro },
+                }] : [],
+            };
 
             const descontos = await db.desconto_bloco.findAll({
                 where,
                 include: [
                     { model: db.bloco_producao, as: 'bloco', include: [{ model: db.unidade, as: 'unidade', attributes: ['unidade_id', 'nome', 'sigla'] }] },
-                    { model: db.repasse_mensal, as: 'repasse', attributes: ['repasse_id', 'contrato_id', 'mes_referencia'] },
+                    repasseInclude,
                 ],
                 order: [['mes_referencia', 'DESC']],
             });
@@ -29,14 +45,29 @@ class DescontoController {
 
     listarDescontosIndicador = async (req, res, next) => {
         try {
+            const ossIdFiltro = getOssIdSeEscopoProprio(req);
             const where = {};
             if (req.query.mes) where.mes_referencia = req.query.mes;
+
+            const repasseInclude = {
+                model: db.repasse_mensal,
+                as: 'repasse',
+                required: true,
+                attributes: ['repasse_id', 'contrato_id'],
+                include: ossIdFiltro ? [{
+                    model: db.contrato,
+                    as: 'contrato',
+                    required: true,
+                    attributes: ['oss_id'],
+                    where: { oss_id: ossIdFiltro },
+                }] : [],
+            };
 
             const descontos = await db.desconto_indicador.findAll({
                 where,
                 include: [
                     { model: db.indicador, as: 'indicador', attributes: ['indicador_id', 'codigo', 'nome', 'grupo'] },
-                    { model: db.repasse_mensal, as: 'repasse', attributes: ['repasse_id', 'contrato_id'] },
+                    repasseInclude,
                 ],
                 order: [['mes_referencia', 'DESC']],
             });
@@ -53,6 +84,8 @@ class DescontoController {
         try {
             const { id } = req.params;
             const auditoraId = req.user.usuario_id || req.user.uuid;
+            const ossIdFiltro = getOssIdSeEscopoProprio(req);
+            await assertDescontoBlocoNoEscopoOSS(id, ossIdFiltro);
 
             const desconto = await db.desconto_bloco.findOne({ where: { desc_bloco_id: id } });
             if (!desconto) return next(new ApiError(httpStatus.NOT_FOUND, 'Desconto de bloco não encontrado'));
@@ -71,7 +104,8 @@ class DescontoController {
             if (!mes || !/^\d{4}-\d{2}-01$/.test(mes)) {
                 return next(new ApiError(httpStatus.BAD_REQUEST, 'Parâmetro mes obrigatório no formato YYYY-MM-01'));
             }
-            const repasse = await AcompanhamentoService.calcularRepasse(mes, contrato_id);
+            const ossIdFiltro = getOssIdSeEscopoProprio(req);
+            const repasse = await AcompanhamentoService.calcularRepasse(mes, contrato_id, ossIdFiltro);
             return res.status(httpStatus.OK).json({ status: true, data: repasse });
         } catch (e) {
             logger.error(e);

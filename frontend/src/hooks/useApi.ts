@@ -1,5 +1,19 @@
 import { useCallback } from 'react'
-import { useAuth } from '../contexts/AuthContext'
+import { useAuth, accessTokenExpMs } from '../contexts/AuthContext'
+
+/** Só chama /auth/refresh-token se o access estiver a expirar (evita loop + 502 em rajada) */
+const SLIDING_EXTEND_WHEN_WITHIN_MS = 4 * 60 * 1000
+
+function maybeExtendSession(
+  accessToken: string | null,
+  extendSession: () => Promise<boolean>,
+) {
+  if (!accessToken) return
+  const expMs = accessTokenExpMs(accessToken)
+  if (expMs == null) return
+  if (expMs - Date.now() > SLIDING_EXTEND_WHEN_WITHIN_MS) return
+  void extendSession().catch(() => {})
+}
 
 const AUTH_KEY = 'oss_auth'
 
@@ -7,11 +21,24 @@ function readTokenFromStorage(): string | null {
   try {
     const raw = localStorage.getItem(AUTH_KEY)
     if (!raw) return null
-    const p = JSON.parse(raw) as { token?: string | null }
-    return p.token && typeof p.token === 'string' ? p.token : null
+    const p = JSON.parse(raw) as { token?: string | null; isAuthenticated?: boolean }
+    if (p.isAuthenticated === true && (!p.token || typeof p.token !== 'string')) return null
+    if (typeof p.token !== 'string' || !p.token.trim()) return null
+    return p.token.trim()
   } catch {
     return null
   }
+}
+
+/** Só padrões típicos de middleware auth — evita confundir com erros de validação */
+function isAuthFailureMessage(msg: string, status: number): boolean {
+  if (status === 401) return true
+  if (!msg.trim()) return false
+  const s = msg.toLowerCase()
+  // Mensagem em qualquer status (ex.: 500 com corpo { message: "Please authenticate" })
+  if (/please authenticate|you must be logged|fa[cç]a login|n[aã]o autenticad/.test(s)) return true
+  if (status === 403 && /unauthoriz|forbidden|authenticate/.test(s)) return true
+  return false
 }
 
 interface RequestOptions extends Omit<RequestInit, 'headers'> {
@@ -29,8 +56,13 @@ export class ApiError extends Error {
   }
 }
 
+function redirectToLogin() {
+  if (typeof window === 'undefined') return
+  window.location.assign('/login')
+}
+
 export function useApi() {
-  const { token, logout } = useAuth()
+  const { token, logout, extendSession } = useAuth()
 
   const request = useCallback(
     async <T>(endpoint: string, options: RequestOptions = {}): Promise<T> => {
@@ -39,7 +71,8 @@ export function useApi() {
         ...options.headers,
       }
 
-      const accessToken = token ?? readTokenFromStorage()
+      const fromContext = typeof token === 'string' && token.trim() ? token.trim() : null
+      const accessToken = fromContext ?? readTokenFromStorage()
       if (accessToken) {
         headers['Authorization'] = `Bearer ${accessToken}`
       }
@@ -49,36 +82,55 @@ export function useApi() {
         headers,
       })
 
-      if (res.status === 401) {
-        // Em DEV, não força logout: o componente cai no catch e usa dados mock.
-        // Em PROD (backend real), logout imediato por sessão expirada.
-        if (!import.meta.env.DEV) {
-          logout()
+      const text = await res.text()
+      let body: Record<string, unknown> = {}
+      if (text.trim()) {
+        try {
+          body = JSON.parse(text) as Record<string, unknown>
+        } catch {
+          body = { message: text }
         }
-        throw new ApiError(401, 'Sessão expirada. Faça login novamente.')
+      }
+
+      const serverMsg = String(
+        (body?.message as string) || (body?.error as string) || (body as { msg?: string }).msg || '',
+      )
+
+      const looksUnauthorized =
+        isAuthFailureMessage(serverMsg, res.status)
+        || (res.status === 500 && body?.code === 401)
+
+      if (looksUnauthorized) {
+        logout()
+        redirectToLogin()
+        throw new ApiError(401, serverMsg || 'Sessão inválida. Faça login novamente.')
       }
 
       if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string; error?: string; code?: number }
-        const serverMsg: string = body.message || body.error || ''
-        // Se o proxy/servidor devolve 500 com corpo { code: 401 }, alinhar ao código semântico
         const code =
-          typeof body.code === 'number' && body.code >= 400 && res.status === 500 ? body.code : res.status
-        throw new ApiError(code, serverMsg || `Erro HTTP ${res.status}`)
+          typeof body.code === 'number' && body.code >= 400 && res.status === 500
+            ? body.code
+            : res.status
+        throw new ApiError(
+          code,
+          serverMsg || `Erro HTTP ${res.status}`,
+        )
       }
 
       if (res.status === 204 || res.status === 205) {
+        maybeExtendSession(accessToken, extendSession)
         return undefined as T
       }
 
-      const text = await res.text()
       if (!text.trim()) {
+        maybeExtendSession(accessToken, extendSession)
         return undefined as T
       }
 
+      maybeExtendSession(accessToken, extendSession)
       return JSON.parse(text) as T
     },
-    [token, logout],
+    [token, logout, extendSession],
   )
 
   const get = useCallback(<T>(endpoint: string) => request<T>(endpoint), [request])

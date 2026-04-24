@@ -3,11 +3,11 @@
 ## SaúdeControl OSS — Sistema de Acompanhamento de Contratos de Gestão em Saúde Pública
 ### Município de Americana/SP
 
-**Versão:** 2.0  
-**Data de Atualização:** 12 de abril de 2026  
+**Versão:** 2.1  
+**Data de Atualização:** 23 de abril de 2026  
 **Responsável:** Rodrigo Alexander Diaz Leon, Diretor de Planejamento da SMS Americana  
-**Status:** Revisado com base nos Planos de Trabalho e Planilhas Operacionais  
-**Boilerplate Base:** node-express-mysql-boilerplate (kazi-naimul)  
+**Status:** Revisado com base nos Planos de Trabalho, planilhas operacionais e entregas em `docs/superpowers/` (auth/permissions, metas decompostas)  
+**Base de código:** Node.js + Express + Sequelize · frontend React 18 + TypeScript + Vite (proxy `/api`)  
 **Banco de Dados:** MySQL/MariaDB  
 **Hospedagem:** Servidor Local (SMS Americana)
 
@@ -63,9 +63,8 @@ MVC (Model-View-Controller) com separação clara de responsabilidades, implemen
 │   ┌─────────────────────────────────────────────────────────┐   │
 │   │       CAMADA DE DADOS (ORM Sequelize + MySQL)           │   │
 │   │   Models: Contrato, OSS, Unidade, Bloco, Indicador,     │   │
-│   │   MetaAnual, AcompanhamentoMensal, IndicadorImplant.,   │   │
-│   │   Desconto, NotaExplicativa, RubricaOrcamentaria,       │   │
-│   │   ConsolidacaoPeriodica, Usuario, AuditoriaLog          │   │
+│   │   Meta, AcompanhamentoMensal, PermissaoPerfil,          │   │
+│   │   Desconto, NotaExplicativa, Rubrica, Usuario, …        │   │
 │   └─────────────────────────────────────────────────────────┘   │
 │                          ↓                                       │
 │   ┌─────────────────────────────────────────────────────────┐   │
@@ -76,6 +75,22 @@ MVC (Model-View-Controller) com separação clara de responsabilidades, implemen
 │                                                                  │
 └──────────────────────────────────────────────────────────────────┘
 ```
+
+### 1.3 Autenticação, autorização e multi-módulo (implementado)
+
+- **Sessão:** login com e-mail e senha (`bcrypt` sobre `tb_usuarios.senha_hash`); resposta inclui tokens JWT; refresh via rotas de auth existentes.  
+- **Permissões no banco:** tabela `tb_permissoes_perfil` — por par (`perfil`, `módulo`) define `can_view/insert/update/delete` e `escopo` (`global` | `proprio`). O perfil `proprio` aciona filtro por `oss_id` do usuário no backend (`ossScopeHelper` + serviços).  
+- **API:** `GET /api/auth/me/permissions` carrega matriz do perfil logado; frontend usa `canDo(módulo, ação)` e rotas protegidas por módulo.  
+- **Admin:** CRUD de usuários (`/api/usuarios`) e matriz de permissões (`/api/permissoes/:perfil`) restritos a perfis administrativos; middleware `checkPermission` disponível para mutações granulares.
+
+### 1.4 Metas decompostas e acompanhamento por folha (implementado)
+
+Conforme [spec de metas](superpowers/specs/2026-04-23-metas-decomposicao-pesos-design.md) e [plano associado](superpowers/plans/2026-04-23-metas-decomposicao-pesos.md):
+
+- **`tb_metas`:** colunas `parent_meta_id` (auto-FK), `papel` (`avulsa` | `agregada` | `componente`), `peso` (componentes). Pacote criado em transação com **mesma `versao`** para pai e filhas; soma dos `meta_mensal` das filhas = meta agregada (tolerância no serviço). Indicador **qualitativo** não aceita pacote.  
+- **API:** `POST /api/metas` (avulsa), `POST /api/metas/pacote` (agregada + componentes), listagem de raízes com `children`.  
+- **`tb_acompanhamento_mensal`:** unicidade **(`meta_id`, `mes_referencia`)**; lançamento só em metas **folha** (avulsa ou componente); meta **agregada** não recebe `valor_realizado` (derivado).  
+- **Cumprimento global (F):** helper `metaCumprimentoPonderado` — média ponderada dos fatores por linha, com cap abaixo de `meta_minima` (constante `META_FATOR_CAP_SUBMIN`).
 
 ---
 
@@ -656,11 +671,14 @@ module.exports = DescontoServiceFactory;
 
 ## 5. ENDPOINTS REST COMPLETOS
 
+> **Prefixo real da aplicação:** `/api` (não `/api/v1`). Exemplos abaixo usam o padrão antigo para compatibilidade de leitura; na implementação, trocar `v1` por rota direta em `/api`.
+
 ```
 AUTENTICAÇÃO
 POST   /api/v1/auth/login
 POST   /api/v1/auth/refresh
 POST   /api/v1/auth/logout
+GET    /api/v1/auth/me/permissions   -- permissões do perfil (matriz)
 
 OSS (Organizações Sociais)
 GET    /api/v1/oss
@@ -745,6 +763,13 @@ GET    /api/v1/usuarios
 POST   /api/v1/usuarios
 PUT    /api/v1/usuarios/:id
 DELETE /api/v1/usuarios/:id                        -- soft-delete (LGPD)
+
+PERMISSÕES (admin)
+GET    /api/v1/permissoes/:perfil
+PUT    /api/v1/permissoes/:perfil                 -- corpo: { permissoes: [...] }
+
+METAS (extensão)
+POST   /api/v1/metas/pacote                       -- cria agregada + N componentes (só produção)
 
 AUDITORIA
 GET    /api/v1/auditoria/logs
@@ -988,6 +1013,7 @@ if (user.perfil === 'contratada_scmc') {
 
 ---
 
-**Documento Atualizado:** 12 de abril de 2026 | **Versão:** 2.0  
+**Documento Atualizado:** 23 de abril de 2026 | **Versão:** 2.1  
 **Contratos de Referência:** SCMC 009/2023 (6º TA) · SCMC 066/2024 (2º TA UPA Dona Rosa) · INDSH Chamamento PMA 002/2025 (UPA Zanaga)  
+**Especificações recentes:** `docs/superpowers/specs/2026-04-23-metas-decomposicao-pesos-design.md` · plano auth/permissions em `docs/superpowers/plans/2026-04-23-auth-permissions.md`  
 **Responsável:** Rodrigo Alexander Diaz Leon, Diretor de Planejamento da SMS Americana

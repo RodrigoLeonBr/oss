@@ -29,12 +29,16 @@ function fromPayload(p) {
     return m;
 }
 
-const listar = async () => {
-    const lista = await db.oss.findAll({ order: [['nome', 'ASC']] });
+const listar = async (ossIdFiltro = null) => {
+    const where = ossIdFiltro ? { oss_id: ossIdFiltro } : {};
+    const lista = await db.oss.findAll({ where, order: [['nome', 'ASC']] });
     return lista.map(toRecord);
 };
 
-const buscarPorId = async (id) => {
+const buscarPorId = async (id, ossIdFiltro = null) => {
+    if (ossIdFiltro && id !== ossIdFiltro) {
+        throw new ApiError(httpStatus.NOT_FOUND, 'Organização não encontrada');
+    }
     const oss = await db.oss.findOne({
         where: { oss_id: id },
         include: [{ model: db.contrato, as: 'contratos', attributes: ['contrato_id', 'numero', 'status'] }],
@@ -43,8 +47,11 @@ const buscarPorId = async (id) => {
     return toRecord(oss);
 };
 
-const criar = async (payload) => {
+const criar = async (payload, ossIdFiltro = null) => {
     const dados = fromPayload(payload);
+    if (ossIdFiltro) {
+        throw new ApiError(httpStatus.FORBIDDEN, 'Não é permitido criar nova OSS neste perfil.');
+    }
     if (!dados.cnpj) throw new ApiError(httpStatus.BAD_REQUEST, 'CNPJ é obrigatório');
 
     const existente = await db.oss.findOne({ where: { cnpj: dados.cnpj } });
@@ -54,7 +61,10 @@ const criar = async (payload) => {
     return toRecord(oss);
 };
 
-const atualizar = async (id, payload) => {
+const atualizar = async (id, payload, ossIdFiltro = null) => {
+    if (ossIdFiltro && id !== ossIdFiltro) {
+        throw new ApiError(httpStatus.NOT_FOUND, 'Organização não encontrada');
+    }
     const oss = await db.oss.findOne({ where: { oss_id: id } });
     if (!oss) throw new ApiError(httpStatus.NOT_FOUND, 'Organização não encontrada');
 
@@ -69,7 +79,10 @@ const atualizar = async (id, payload) => {
     return toRecord(await oss.reload());
 };
 
-const remover = async (id) => {
+const remover = async (id, ossIdFiltro = null) => {
+    if (ossIdFiltro && id !== ossIdFiltro) {
+        throw new ApiError(httpStatus.NOT_FOUND, 'Organização não encontrada');
+    }
     const oss = await db.oss.findOne({ where: { oss_id: id } });
     if (!oss) throw new ApiError(httpStatus.NOT_FOUND, 'Organização não encontrada');
 

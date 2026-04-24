@@ -2,9 +2,10 @@
 ## Sistema de Acompanhamento de Contratos de Gestão em Saúde Pública
 ### Município de Americana/SP
 
-**Versão:** 2.0 | **Atualizado:** Abril/2026  
+**Versão:** 2.1 | **Atualizado:** 23 de abril de 2026  
 **Compatibilidade:** MySQL 8.0+ / MariaDB 10.6+  
-**Responsável:** Rodrigo Alexander Diaz Leon, Diretor de Planejamento da SMS Americana
+**Responsável:** Rodrigo Alexander Diaz Leon, Diretor de Planejamento da SMS Americana  
+**Alinhamento:** spec [metas decomposição/pesos](superpowers/specs/2026-04-23-metas-decomposicao-pesos-design.md) · migrações `20260423000001`, `20260424120001`, `20260424120002` em `src/db/migrations/`
 
 ---
 
@@ -15,6 +16,10 @@ Este banco de dados centraliza, gerencia e monitora contratos de gestão de unid
 1. **Multi-contrato ilimitado:** qualquer número de OSS, contratos e unidades pode ser adicionado sem alteração de schema.
 2. **Imutabilidade do histórico:** toda mudança de valor, meta, regra ou configuração gera uma nova versão — nunca sobrescreve dados validados de períodos anteriores.
 3. **Dois modelos de desconto coexistentes:** modelo *flat* (SCMC: −1% fixo por indicador não cumprido) e modelo *ponderado* (INDSH: −peso_individual% por indicador), selecionados automaticamente pela configuração do contrato.
+
+4. **Metas decompostas (indicador quantitativo):** uma meta **agregada** (pai) e N metas **componente** (filhas) com `peso` &gt; 0; soma dos volumes das filhas = referência do pai; cumprimento global agregado usa **média ponderada** de fatores por linha (ver serviço/helper no backend), não apenas soma de realizados. **Acompanhamento mensal** amarrado a **meta folha**; restrição única **(meta_id, mês)**.
+
+5. **Permissões por perfil:** tabela `tb_permissoes_perfil` define acesso por **módulo** (dashboard, metas, usuários, etc.) e ações CRUD, com **escopo** global ou limitado à OSS do usuário.
 
 ---
 
@@ -329,6 +334,11 @@ CREATE TABLE TB_METAS (
   meta_id             CHAR(36)     PRIMARY KEY DEFAULT (UUID()),
   indicador_id        CHAR(36)     NOT NULL REFERENCES TB_INDICADORES(indicador_id),
   aditivo_id          CHAR(36)     NULL REFERENCES TB_ADITIVOS(aditivo_id),
+  -- Hierarquia (decomposição): NULL = raiz (avulsa ou agregada)
+  parent_meta_id      CHAR(36)     NULL REFERENCES TB_METAS(meta_id),
+  papel               ENUM('avulsa','agregada','componente') NOT NULL DEFAULT 'avulsa',
+  peso                DECIMAL(10,4) NULL,
+  -- NULL = avulsa/agregada; > 0 = componente (peso relativo na média F)
   -- NULL = meta original do contrato
   versao              INT          NOT NULL DEFAULT 1,
   vigencia_inicio     DATE         NOT NULL,
@@ -359,9 +369,12 @@ CREATE TABLE TB_METAS (
 
   INDEX idx_metas_indicador   (indicador_id),
   INDEX idx_metas_vigencia    (indicador_id, vigencia_inicio),
-  INDEX idx_metas_aditivo     (aditivo_id)
+  INDEX idx_metas_aditivo     (aditivo_id),
+  INDEX idx_metas_parent      (parent_meta_id)
 );
 ```
+
+> **Regra de negócio:** indicadores **qualitativos** não recebem decomposição (validação no `MetaService`). Pacote (pai+filhas) compartilha a mesma `versao` no mesmo `indicador_id`.
 
 ---
 
@@ -424,7 +437,8 @@ CREATE TABLE TB_ACOMPANHAMENTO_MENSAL (
   atualizado_em       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
                                    ON UPDATE CURRENT_TIMESTAMP,
 
-  UNIQUE KEY uk_acomp_ind_mes (indicador_id, mes_referencia),
+  -- Uma linha por meta folha e mês (substitui unicidade só por indicador+mês quando há várias metas ativas)
+  UNIQUE KEY uk_acomp_meta_mes (meta_id, mes_referencia),
   INDEX idx_acomp_mes         (mes_referencia),
   INDEX idx_acomp_status      (status_cumprimento),
   INDEX idx_acomp_aprovacao   (status_aprovacao),
@@ -738,9 +752,26 @@ CREATE TABLE TB_DOCUMENTOS_REGULATORIOS (
 
 ---
 
-### GRUPO G — Usuários e Segurança
+### GRUPO G — Usuários, permissões e segurança
 
 ```sql
+-- ============================================================
+-- TB_PERMISSOES_PERFIL: matriz módulo × ação por perfil (seed + edição admin)
+-- ============================================================
+CREATE TABLE tb_permissoes_perfil (
+  perm_id      CHAR(36)     PRIMARY KEY DEFAULT (UUID()),
+  perfil       ENUM('admin','gestor_sms','auditora','conselheiro_cms',
+                     'contratada_scmc','contratada_indsh',
+                     'central_regulacao','visualizador') NOT NULL,
+  modulo       VARCHAR(50)  NOT NULL,
+  can_view     TINYINT(1)   NOT NULL DEFAULT 0,
+  can_insert   TINYINT(1)   NOT NULL DEFAULT 0,
+  can_update   TINYINT(1)   NOT NULL DEFAULT 0,
+  can_delete   TINYINT(1)   NOT NULL DEFAULT 0,
+  escopo       ENUM('global','proprio') NOT NULL DEFAULT 'global',
+  UNIQUE KEY uq_perfil_modulo (perfil, modulo)
+);
+
 -- ============================================================
 -- TB_USUARIOS
 -- ============================================================
@@ -1036,17 +1067,17 @@ DELIMITER ;
 
 ---
 
-## Contagem de Tabelas: 22 Tabelas
+## Contagem de Tabelas: 23+ (22 legado + `tb_permissoes_perfil`)
 
 | **Grupo** | **Tabelas** | **Propósito** |
 |---|---|---|
 | A – Organizacional | TB_OSS, TB_CONTRATOS, TB_HISTORICO_CONTRATO, TB_ADITIVOS, TB_UNIDADES, TB_BLOCOS_PRODUCAO, TB_HISTORICO_BLOCOS | Estrutura contratual com histórico completo |
-| B – Indicadores | TB_INDICADORES, TB_HISTORICO_INDICADORES, TB_METAS | Catálogo e metas com versionamento |
+| B – Indicadores | TB_INDICADORES, TB_HISTORICO_INDICADORES, TB_METAS | Catálogo e metas com versionamento e **decomposição opcional** |
 | C – Acompanhamento | TB_ACOMPANHAMENTO_MENSAL, TB_NOTAS_EXPLICATIVAS, TB_CONSOLIDACOES, TB_CONSOLIDACAO_ITENS | Entrada de dados e análises periódicas |
 | D – Financeiro | TB_REPASSE_MENSAL, TB_DESCONTOS_BLOCO, TB_DESCONTOS_INDICADOR | Cálculo de repasse e descontos |
 | E – Rubricas | TB_RUBRICAS, TB_EXECUCAO_FINANCEIRA, TB_HISTORICO_RUBRICAS | Acompanhamento orçamentário |
 | F – Operacional | TB_COMISSOES, TB_DOCUMENTOS_REGULATORIOS | Conformidade e controle |
-| G – Segurança | TB_USUARIOS, TB_AUDITORIA_LOGS | Acesso e rastreabilidade |
+| G – Segurança | TB_USUARIOS, **tb_permissoes_perfil**, TB_AUDITORIA_LOGS | Acesso, **matriz de módulos** e rastreabilidade |
 
 ---
 
@@ -1062,5 +1093,5 @@ DELIMITER ;
 
 ---
 
-**Versão:** 2.0 | **Tabelas:** 22 | **Views:** 1 | **Procedures:** 1 | **Triggers:** 1  
+**Versão:** 2.1 | **Tabelas base doc:** 22 + extensões (`tb_permissoes_perfil`, colunas em `tb_metas`, unicidade acomp. por meta) | **Views:** 1 | **Procedures:** 1 | **Triggers:** 1  
 **Responsável:** Rodrigo Alexander Diaz Leon — SMS Americana

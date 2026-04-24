@@ -56,6 +56,9 @@ const quant = (unidade_id, bloco_id, codigo, nome, fonte_dados = 'Manual') => ({
   meta_tipo: 'maior_igual',
   unidade_medida: 'unidades/mês',
   tipo_implantacao: 0,
+  vigencia_inicio: '2026-01-01',
+  vigencia_fim: null,
+  prazo_implantacao: null,
   versao: 1,
   ativo: 1,
 });
@@ -74,6 +77,9 @@ const qual = (unidade_id, codigo, nome, grupo, peso_perc, meta_tipo = 'maior_igu
   meta_tipo,
   unidade_medida: '%',
   tipo_implantacao: 0,
+  vigencia_inicio: '2026-01-01',
+  vigencia_fim: null,
+  prazo_implantacao: null,
   versao: 1,
   ativo: 1,
 });
@@ -93,6 +99,9 @@ const info = (unidade_id, codigo, nome, grupo, meta_tipo = 'maior_igual', unidad
   meta_tipo,
   unidade_medida,
   tipo_implantacao: 0,
+  vigencia_inicio: '2026-01-01',
+  vigencia_fim: null,
+  prazo_implantacao: null,
   versao: 1,
   ativo: 1,
 });

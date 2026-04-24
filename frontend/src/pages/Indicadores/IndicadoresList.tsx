@@ -7,7 +7,7 @@ import {
   X as XIcon, ArrowLeft,
 } from 'lucide-react'
 import { useApi, ApiError } from '../../hooks/useApi'
-import { useAuth } from '../../contexts/AuthContext'
+import { usePermission } from '../../hooks/usePermission'
 import type { IndicadorRecord } from './types'
 import {
   TIPO_LABELS, TIPO_BADGE,
@@ -51,7 +51,8 @@ const MIN_W = 880
 // ── Row props ─────────────────────────────────────────────────────────────────
 interface RowProps {
   rows: IndicadorRecord[]
-  canWrite: boolean
+  canUpdate: boolean
+  canDelete: boolean
   onEdit: (i: IndicadorRecord) => void
   onDelete: (i: IndicadorRecord) => void
 }
@@ -62,7 +63,8 @@ function IndicadorRow({
   index,
   style,
   rows,
-  canWrite,
+  canUpdate,
+  canDelete,
   onEdit,
   onDelete,
 }: RowComponentProps<RowProps>) {
@@ -121,25 +123,25 @@ function IndicadorRow({
 
       {/* Ações */}
       <div role="cell" className="flex items-center gap-1">
-        {canWrite && (
-          <>
-            <button
-              type="button"
-              onClick={() => onEdit(ind)}
-              aria-label={`Editar indicador ${ind.nome}`}
-              className="rounded-lg p-1.5 text-text-faint transition-colors hover:bg-primary/10 hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
-            >
-              <Edit3 size={15} />
-            </button>
-            <button
-              type="button"
-              onClick={() => onDelete(ind)}
-              aria-label={`Excluir indicador ${ind.nome}`}
-              className="rounded-lg p-1.5 text-text-faint transition-colors hover:bg-status-bad-bg hover:text-status-bad focus-visible:outline focus-visible:outline-2 focus-visible:outline-status-bad"
-            >
-              <Trash2 size={15} />
-            </button>
-          </>
+        {canUpdate && (
+          <button
+            type="button"
+            onClick={() => onEdit(ind)}
+            aria-label={`Editar indicador ${ind.nome}`}
+            className="rounded-lg p-1.5 text-text-faint transition-colors hover:bg-primary/10 hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+          >
+            <Edit3 size={15} />
+          </button>
+        )}
+        {canDelete && (
+          <button
+            type="button"
+            onClick={() => onDelete(ind)}
+            aria-label={`Excluir indicador ${ind.nome}`}
+            className="rounded-lg p-1.5 text-text-faint transition-colors hover:bg-status-bad-bg hover:text-status-bad focus-visible:outline focus-visible:outline-2 focus-visible:outline-status-bad"
+          >
+            <Trash2 size={15} />
+          </button>
         )}
       </div>
     </div>
@@ -151,8 +153,7 @@ export default function IndicadoresList() {
   const { unidadeId } = useParams<{ unidadeId: string }>()
   const navigate = useNavigate()
   const { get, del } = useApi()
-  const { hasPermission } = useAuth()
-  const canWrite = hasPermission(['admin', 'gestor_sms'])
+  const { canInsert, canUpdate, canDelete } = usePermission('indicadores')
 
   // ── State ──────────────────────────────────────────────────────────────────
   const [lista, setLista]               = useState<IndicadorRecord[]>([])
@@ -335,11 +336,12 @@ export default function IndicadoresList() {
   const rowProps: RowProps = useMemo(
     () => ({
       rows: filtrados,
-      canWrite,
+      canUpdate,
+      canDelete,
       onEdit:   (i) => setFormModal({ open: true, indicador: i }),
       onDelete: (i) => setDeleteModal({ open: true, indicador: i }),
     }),
-    [filtrados, canWrite],
+    [filtrados, canUpdate, canDelete],
   )
 
   const ROW_HEIGHT = 52
@@ -442,7 +444,7 @@ export default function IndicadoresList() {
           >
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
           </button>
-          {canWrite && (
+          {canInsert && (
             <button
               type="button"
               onClick={() => setFormModal({ open: true })}
@@ -572,7 +574,7 @@ export default function IndicadoresList() {
                 <p className="text-sm text-text-muted">
                   {hasFilters
                     ? 'Tente outros termos ou limpe os filtros.'
-                    : canWrite
+                    : canInsert
                       ? 'Clique em "Novo Indicador" para começar.'
                       : 'Entre em contato com o administrador.'}
                 </p>

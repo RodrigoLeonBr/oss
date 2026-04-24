@@ -1,5 +1,6 @@
 const httpStatus = require('http-status');
 const ApiError = require('../helper/ApiError');
+const { assertContratoNoEscopoOSS } = require('../helper/ossScopeHelper');
 const db = require('../models');
 
 // Serializa Sequelize → formato camelCase esperado pelo frontend
@@ -39,8 +40,10 @@ function fromPayload(p) {
 
 const INCLUDE_ORG = { model: db.oss, as: 'organizacao', attributes: ['oss_id', 'nome', 'cnpj'] };
 
-const listar = async () => {
+const listar = async (ossIdFiltro = null) => {
+    const where = ossIdFiltro ? { oss_id: ossIdFiltro } : {};
     const contratos = await db.contrato.findAll({
+        where,
         include: [
             INCLUDE_ORG,
             { model: db.unidade, as: 'unidades', attributes: ['unidade_id', 'nome', 'sigla', 'tipo', 'ativa'] },
@@ -50,7 +53,8 @@ const listar = async () => {
     return contratos.map(toRecord);
 };
 
-const buscarPorId = async (contratoId) => {
+const buscarPorId = async (contratoId, ossIdFiltro = null) => {
+    await assertContratoNoEscopoOSS(contratoId, ossIdFiltro);
     const contrato = await db.contrato.findOne({
         where: { contrato_id: contratoId },
         include: [
@@ -65,12 +69,16 @@ const buscarPorId = async (contratoId) => {
     return toRecord(contrato);
 };
 
-const criar = async (payload) => {
+const criar = async (payload, ossIdFiltro = null) => {
     const dados = fromPayload(payload);
 
     // Defaults obrigatórios ausentes no form simplificado do frontend
     if (!dados.tipo)                 dados.tipo = 'contrato_gestao';
     if (!dados.modelo_desconto_qual) dados.modelo_desconto_qual = 'flat';
+
+    if (ossIdFiltro) {
+        dados.oss_id = ossIdFiltro;
+    }
 
     if (!dados.numero) throw new ApiError(httpStatus.BAD_REQUEST, 'Número do contrato é obrigatório');
 
@@ -97,11 +105,15 @@ const criar = async (payload) => {
     return toRecord(created);
 };
 
-const atualizar = async (contratoId, payload) => {
+const atualizar = async (contratoId, payload, ossIdFiltro = null) => {
+    await assertContratoNoEscopoOSS(contratoId, ossIdFiltro);
     const contrato = await db.contrato.findOne({ where: { contrato_id: contratoId } });
     if (!contrato) throw new ApiError(httpStatus.NOT_FOUND, 'Contrato não encontrado');
 
     const dados = fromPayload(payload);
+    if (ossIdFiltro && dados.oss_id !== undefined && dados.oss_id !== ossIdFiltro) {
+        throw new ApiError(httpStatus.FORBIDDEN, 'Não é permitido alterar a OSS do contrato.');
+    }
     await contrato.update(dados);
 
     const updated = await db.contrato.findOne({
@@ -111,7 +123,8 @@ const atualizar = async (contratoId, payload) => {
     return toRecord(updated);
 };
 
-const adicionarAditivo = async (contratoId, dadosAditivo) => {
+const adicionarAditivo = async (contratoId, dadosAditivo, ossIdFiltro = null) => {
+    await assertContratoNoEscopoOSS(contratoId, ossIdFiltro);
     const contrato = await db.contrato.findOne({ where: { contrato_id: contratoId } });
     if (!contrato) throw new ApiError(httpStatus.NOT_FOUND, 'Contrato não encontrado');
 
@@ -120,14 +133,20 @@ const adicionarAditivo = async (contratoId, dadosAditivo) => {
     return aditivo;
 };
 
-const aplicarAditivo = async (aditivoId) => {
+const aplicarAditivo = async (aditivoId, ossIdFiltro = null) => {
+    if (ossIdFiltro) {
+        const ad = await db.aditivo.findOne({ where: { aditivo_id: aditivoId }, attributes: ['contrato_id'] });
+        if (!ad) throw new ApiError(httpStatus.NOT_FOUND, 'Aditivo não encontrado');
+        await assertContratoNoEscopoOSS(ad.contrato_id, ossIdFiltro);
+    }
     await db.sequelize.query('CALL sp_aplicar_aditivo(:aditivo_id)', {
         replacements: { aditivo_id: aditivoId },
     });
     return db.aditivo.findOne({ where: { aditivo_id: aditivoId } });
 };
 
-const excluir = async (contratoId) => {
+const excluir = async (contratoId, ossIdFiltro = null) => {
+    await assertContratoNoEscopoOSS(contratoId, ossIdFiltro);
     const contrato = await db.contrato.findOne({ where: { contrato_id: contratoId } });
     if (!contrato) throw new ApiError(httpStatus.NOT_FOUND, 'Contrato não encontrado');
 

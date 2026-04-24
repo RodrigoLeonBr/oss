@@ -10,6 +10,8 @@ const listarAcompanhamentos = Joi.object({
 const criarAcompanhamento = Joi.object({
   indicadorId:    Joi.string().uuid().required()
                     .messages({ 'any.required': 'indicadorId é obrigatório' }),
+  metaId:         Joi.string().uuid().optional()
+                    .messages({ 'string.guid': 'metaId inválido' }),
   mesReferencia:  Joi.string().pattern(/^\d{4}-\d{2}-01$/).required()
                     .messages({
                       'any.required': 'mesReferencia é obrigatório',

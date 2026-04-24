@@ -6,7 +6,7 @@ import {
   X as XIcon,
 } from 'lucide-react'
 import { useApi } from '../../hooks/useApi'
-import { useAuth } from '../../contexts/AuthContext'
+import { usePermission } from '../../hooks/usePermission'
 import type { OssRecord } from './types'
 import { formatarCNPJ, unwrap, mockOssRecords } from './types'
 import OssFormModal from './OssFormModal'
@@ -51,7 +51,8 @@ const MIN_W    = 1000   // largura mínima do scroll horizontal (px)
 // ── Row props passed to react-window List ─────────────────────────────────────
 interface RowProps {
   rows: OssRecord[]
-  canWrite: boolean
+  canUpdate: boolean
+  canDelete: boolean
   onEdit: (oss: OssRecord) => void
   onDelete: (oss: OssRecord) => void
 }
@@ -62,7 +63,8 @@ function OssRow({
   index,
   style,
   rows,
-  canWrite,
+  canUpdate,
+  canDelete,
   onEdit,
   onDelete,
 }: RowComponentProps<RowProps>) {
@@ -132,25 +134,25 @@ function OssRow({
 
       {/* Ações */}
       <div role="cell" className="flex items-center gap-1">
-        {canWrite && (
-          <>
-            <button
-              type="button"
-              onClick={() => onEdit(oss)}
-              aria-label={`Editar ${oss.nome}`}
-              className="rounded-lg p-1.5 text-text-faint transition-colors hover:bg-primary/10 hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
-            >
-              <Edit3 size={15} />
-            </button>
-            <button
-              type="button"
-              onClick={() => onDelete(oss)}
-              aria-label={`Excluir ${oss.nome}`}
-              className="rounded-lg p-1.5 text-text-faint transition-colors hover:bg-status-bad-bg hover:text-status-bad focus-visible:outline focus-visible:outline-2 focus-visible:outline-status-bad"
-            >
-              <Trash2 size={15} />
-            </button>
-          </>
+        {canUpdate && (
+          <button
+            type="button"
+            onClick={() => onEdit(oss)}
+            aria-label={`Editar ${oss.nome}`}
+            className="rounded-lg p-1.5 text-text-faint transition-colors hover:bg-primary/10 hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+          >
+            <Edit3 size={15} />
+          </button>
+        )}
+        {canDelete && (
+          <button
+            type="button"
+            onClick={() => onDelete(oss)}
+            aria-label={`Excluir ${oss.nome}`}
+            className="rounded-lg p-1.5 text-text-faint transition-colors hover:bg-status-bad-bg hover:text-status-bad focus-visible:outline focus-visible:outline-2 focus-visible:outline-status-bad"
+          >
+            <Trash2 size={15} />
+          </button>
         )}
       </div>
     </div>
@@ -160,9 +162,7 @@ function OssRow({
 // ── Main component ────────────────────────────────────────────────────────────
 export default function OssList() {
   const { get, request } = useApi()
-  const { hasPermission } = useAuth()
-
-  const canWrite = hasPermission(['admin', 'gestor_sms'])
+  const { canInsert, canUpdate, canDelete } = usePermission('oss')
 
   // ── State ──────────────────────────────────────────────────────────────────
   const [lista, setLista] = useState<OssRecord[]>([])
@@ -304,11 +304,12 @@ export default function OssList() {
   const rowProps: RowProps = useMemo(
     () => ({
       rows: filtrados,
-      canWrite,
+      canUpdate,
+      canDelete,
       onEdit: (oss) => setFormModal({ open: true, oss }),
       onDelete: (oss) => setDeleteModal({ open: true, oss }),
     }),
-    [filtrados, canWrite],
+    [filtrados, canUpdate, canDelete],
   )
 
   const ROW_HEIGHT = 52
@@ -363,7 +364,7 @@ export default function OssList() {
           >
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
           </button>
-          {canWrite && (
+          {canInsert && (
             <button
               type="button"
               onClick={() => setFormModal({ open: true })}
@@ -475,7 +476,7 @@ export default function OssList() {
                 <p className="text-sm text-text-muted">
                   {busca || filtroStatus !== 'todas'
                     ? 'Tente outros termos ou limpe os filtros.'
-                    : canWrite ? 'Clique em "Nova OSS" para começar.' : 'Entre em contato com o administrador.'}
+                    : canInsert ? 'Clique em "Nova OSS" para começar.' : 'Entre em contato com o administrador.'}
                 </p>
               </div>
             ) : (

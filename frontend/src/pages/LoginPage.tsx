@@ -1,20 +1,21 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Heart, Loader2, AlertCircle } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
+import { firstAccessiblePath } from '../lib/firstAccessiblePath'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const { login, isAuthenticated, user } = useAuth()
+  const { login, isAuthenticated, user, canDo, permissionsLoaded } = useAuth()
   const navigate = useNavigate()
 
-  if (isAuthenticated && user) {
-    const dest = (user.perfil === 'contratada_scmc' || user.perfil === 'contratada_indsh') ? '/perfil-oss' : user.perfil === 'conselheiro_cms' ? '/relatorios' : '/dashboard'
-    navigate(dest, { replace: true })
-  }
+  useEffect(() => {
+    if (!isAuthenticated || !user || !permissionsLoaded) return
+    navigate(firstAccessiblePath(canDo), { replace: true })
+  }, [isAuthenticated, user, permissionsLoaded, canDo, navigate])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -22,7 +23,6 @@ export default function LoginPage() {
     setLoading(true)
     try {
       await login(email, password)
-      navigate('/dashboard')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao fazer login')
     } finally {

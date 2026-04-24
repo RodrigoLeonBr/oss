@@ -11,7 +11,8 @@ export default defineConfig({
     strictPort: true,
     proxy: {
       '/api': {
-        target: 'http://localhost:4001',
+        // 127.0.0.1 evita falhas ECONNREFUSED com localhost (IPv4/IPv6) no Windows
+        target: 'http://127.0.0.1:4001',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, '/api'),
       },

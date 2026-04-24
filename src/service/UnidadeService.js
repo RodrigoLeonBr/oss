@@ -1,5 +1,6 @@
 const httpStatus = require('http-status');
 const ApiError = require('../helper/ApiError');
+const { assertContratoNoEscopoOSS, assertUnidadeNoEscopoOSS } = require('../helper/ossScopeHelper');
 const db = require('../models');
 
 function toRecord(u) {
@@ -71,7 +72,7 @@ function fromPayload(p) {
     return m;
 }
 
-const listar = async (filtros = {}) => {
+const listar = async (filtros = {}, ossIdFiltro = null) => {
     const where = {};
     if (filtros.contratoId) where.contrato_id = filtros.contratoId;
     if (filtros.ativa !== undefined) where.ativa = filtros.ativa ? 1 : 0;
@@ -81,6 +82,8 @@ const listar = async (filtros = {}) => {
         include: [{
             model: db.contrato,
             as: 'contrato',
+            required: Boolean(ossIdFiltro),
+            ...(ossIdFiltro ? { where: { oss_id: ossIdFiltro } } : {}),
             attributes: ['contrato_id', 'numero'],
             include: [{ model: db.oss, as: 'organizacao', attributes: ['oss_id', 'nome'] }],
         }],
@@ -89,7 +92,8 @@ const listar = async (filtros = {}) => {
     return lista.map(toRecord);
 };
 
-const buscarPorId = async (id) => {
+const buscarPorId = async (id, ossIdFiltro = null) => {
+    await assertUnidadeNoEscopoOSS(id, ossIdFiltro);
     const unidade = await db.unidade.findOne({
         where: { unidade_id: id },
         include: [
@@ -106,11 +110,13 @@ const buscarPorId = async (id) => {
     return toRecord(unidade);
 };
 
-const criar = async (payload) => {
+const criar = async (payload, ossIdFiltro = null) => {
     const dados = fromPayload(payload);
     if (!dados.contrato_id) throw new ApiError(httpStatus.BAD_REQUEST, 'contratoId é obrigatório');
     if (!dados.nome) throw new ApiError(httpStatus.BAD_REQUEST, 'nome é obrigatório');
     if (!dados.tipo) throw new ApiError(httpStatus.BAD_REQUEST, 'tipo é obrigatório');
+
+    await assertContratoNoEscopoOSS(dados.contrato_id, ossIdFiltro);
 
     // tb_unidades.sigla é NOT NULL; o form atual não envia sigla
     if (dados.sigla === undefined || dados.sigla === null || !String(dados.sigla).trim()) {
@@ -132,7 +138,8 @@ const criar = async (payload) => {
     }));
 };
 
-const atualizar = async (id, payload) => {
+const atualizar = async (id, payload, ossIdFiltro = null) => {
+    await assertUnidadeNoEscopoOSS(id, ossIdFiltro);
     const unidade = await db.unidade.findOne({ where: { unidade_id: id } });
     if (!unidade) throw new ApiError(httpStatus.NOT_FOUND, 'Unidade não encontrada');
 
@@ -151,7 +158,8 @@ const atualizar = async (id, payload) => {
     }));
 };
 
-const remover = async (id) => {
+const remover = async (id, ossIdFiltro = null) => {
+    await assertUnidadeNoEscopoOSS(id, ossIdFiltro);
     const unidade = await db.unidade.findOne({ where: { unidade_id: id } });
     if (!unidade) throw new ApiError(httpStatus.NOT_FOUND, 'Unidade não encontrada');
     await unidade.destroy();

@@ -50,7 +50,7 @@
 **Files:**
 - Create: `src/db/migrations/20260423000001-create-tb-permissoes-perfil.js`
 
-- [ ] **Step 1: Create the migration file**
+- [x] **Step 1: Create the migration file**
 
 ```js
 // src/db/migrations/20260423000001-create-tb-permissoes-perfil.js
@@ -97,7 +97,7 @@ module.exports = {
 };
 ```
 
-- [ ] **Step 2: Run the migration**
+- [x] **Step 2: Run the migration**
 
 ```bash
 npm run db:migrate
@@ -105,7 +105,7 @@ npm run db:migrate
 
 Expected: `20260423000001-create-tb-permissoes-perfil: migrated` in output. No errors.
 
-- [ ] **Step 3: Verify table in DB**
+- [x] **Step 3: Verify table in DB**
 
 ```bash
 npx sequelize-cli db:migrate:status
@@ -113,7 +113,7 @@ npx sequelize-cli db:migrate:status
 
 Expected: `up` status for the new migration.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/db/migrations/20260423000001-create-tb-permissoes-perfil.js
@@ -129,7 +129,7 @@ git commit -m "feat(db): add tb_permissoes_perfil migration"
 
 > `src/models/index.js` auto-loads all `.js` files in the models directory — no manual registration needed.
 
-- [ ] **Step 1: Create the model**
+- [x] **Step 1: Create the model**
 
 ```js
 // src/models/PermissaoPerfil.js
@@ -175,7 +175,7 @@ class PermissaoPerfil extends Model {
 module.exports = PermissaoPerfil;
 ```
 
-- [ ] **Step 2: Verify model loads**
+- [x] **Step 2: Verify model loads**
 
 Start the backend and check no Sequelize errors on startup:
 
@@ -185,7 +185,7 @@ node -e "const models = require('./src/models'); console.log(Object.keys(models)
 
 Expected: output includes `'permissaoPerfil'`.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/models/PermissaoPerfil.js
@@ -199,7 +199,7 @@ git commit -m "feat(model): add PermissaoPerfil model"
 **Files:**
 - Create: `src/db/seeders/20260423100001-seed-permissoes-defaults.js`
 
-- [ ] **Step 1: Create the seeder**
+- [x] **Step 1: Create the seeder**
 
 ```js
 // src/db/seeders/20260423100001-seed-permissoes-defaults.js
@@ -283,7 +283,7 @@ module.exports = {
 };
 ```
 
-- [ ] **Step 2: Run the seeder**
+- [x] **Step 2: Run the seeder**
 
 ```bash
 npx sequelize-cli db:seed --seed 20260423100001-seed-permissoes-defaults.js
@@ -291,7 +291,7 @@ npx sequelize-cli db:seed --seed 20260423100001-seed-permissoes-defaults.js
 
 Expected: `20260423100001-seed-permissoes-defaults.js: seeded` with no errors.
 
-- [ ] **Step 3: Verify rows**
+- [x] **Step 3: Verify rows**
 
 ```bash
 node -e "const m=require('./src/models'); m.permissaoPerfil.findAll({where:{perfil:'admin'}}).then(r=>console.log(r.length+' rows for admin'));"
@@ -299,7 +299,7 @@ node -e "const m=require('./src/models'); m.permissaoPerfil.findAll({where:{perf
 
 Expected: `12 rows for admin`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/db/seeders/20260423100001-seed-permissoes-defaults.js
@@ -315,7 +315,7 @@ git commit -m "feat(seed): seed default permissions per perfil"
 - Create: `src/controllers/PermissaoController.js`
 - Create: `src/route/permissaoRoute.js`
 
-- [ ] **Step 1: Create `PermissaoService`**
+- [x] **Step 1: Create `PermissaoService`**
 
 ```js
 // src/service/PermissaoService.js
@@ -368,7 +368,7 @@ class PermissaoService {
 module.exports = PermissaoService;
 ```
 
-- [ ] **Step 2: Create `PermissaoController`**
+- [x] **Step 2: Create `PermissaoController`**
 
 ```js
 // src/controllers/PermissaoController.js
@@ -408,7 +408,7 @@ class PermissaoController {
 module.exports = PermissaoController;
 ```
 
-- [ ] **Step 3: Create `permissaoRoute`**
+- [x] **Step 3: Create `permissaoRoute`**
 
 ```js
 // src/route/permissaoRoute.js
@@ -426,7 +426,7 @@ router.put('/:perfil', auth(), authorize('admin'), ctrl.updateBatch);
 module.exports = router;
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/service/PermissaoService.js src/controllers/PermissaoController.js src/route/permissaoRoute.js
@@ -442,7 +442,7 @@ git commit -m "feat(permissoes): add PermissaoService, controller and route"
 - Create: `src/controllers/UsuarioController.js`
 - Create: `src/route/usuarioRoute.js`
 
-- [ ] **Step 1: Create `UsuarioService`**
+- [x] **Step 1: Create `UsuarioService`**
 
 ```js
 // src/service/UsuarioService.js
@@ -559,7 +559,7 @@ class UsuarioService {
 module.exports = UsuarioService;
 ```
 
-- [ ] **Step 2: Create `UsuarioController`**
+- [x] **Step 2: Create `UsuarioController`**
 
 ```js
 // src/controllers/UsuarioController.js
@@ -620,7 +620,7 @@ class UsuarioController {
 module.exports = UsuarioController;
 ```
 
-- [ ] **Step 3: Create `usuarioRoute`**
+- [x] **Step 3: Create `usuarioRoute`**
 
 ```js
 // src/route/usuarioRoute.js
@@ -640,7 +640,7 @@ router.delete('/:id', auth(), authorize('admin'),            ctrl.deactivate);
 module.exports = router;
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/service/UsuarioService.js src/controllers/UsuarioController.js src/route/usuarioRoute.js
@@ -656,7 +656,7 @@ git commit -m "feat(usuarios): add UsuarioService, controller and route"
 - Modify: `src/controllers/AuthController.js`
 - Modify: `src/route/authRoute.js`
 
-- [ ] **Step 1: Register new routes in `src/route/index.js`**
+- [x] **Step 1: Register new routes in `src/route/index.js`**
 
 Add after the existing imports (lines 1-9) and in the `defaultRoutes` array:
 
@@ -672,7 +672,7 @@ Add to `defaultRoutes` array:
 { path: '/permissoes', route: permissaoRoute },
 ```
 
-- [ ] **Step 2: Add `mePermissions` method to `AuthController`**
+- [x] **Step 2: Add `mePermissions` method to `AuthController`**
 
 In `src/controllers/AuthController.js`, add this method to the class (after `changePassword`):
 
@@ -693,7 +693,7 @@ mePermissions = async (req, res) => {
 };
 ```
 
-- [ ] **Step 3: Fix `refreshTokens` in `AuthController`**
+- [x] **Step 3: Fix `refreshTokens` in `AuthController`**
 
 Replace the line `const user = await this.userService.getUserByUuid(refreshTokenDoc.user_uuid);` with:
 
@@ -706,7 +706,7 @@ const user = await models.usuario.findOne({
 
 Also update the null check below it from `if (user == null)` — this is already correct, keep it.
 
-- [ ] **Step 4: Add `/me/permissions` route in `src/route/authRoute.js`**
+- [x] **Step 4: Add `/me/permissions` route in `src/route/authRoute.js`**
 
 Add after the existing `change-password` route:
 
@@ -714,7 +714,7 @@ Add after the existing `change-password` route:
 router.get('/me/permissions', auth(), authController.mePermissions);
 ```
 
-- [ ] **Step 5: Verify backend starts and routes exist**
+- [x] **Step 5: Verify backend starts and routes exist**
 
 ```bash
 npm start
@@ -727,7 +727,7 @@ curl -s http://localhost:4000/api/health
 
 Expected: `{"status":"ok"}`
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/route/index.js src/controllers/AuthController.js src/route/authRoute.js
@@ -741,7 +741,7 @@ git commit -m "feat(auth): register new routes, add me/permissions, fix refreshT
 **Files:**
 - Modify: `src/middlewares/rbac.js`
 
-- [ ] **Step 1: Add `checkPermission` to `rbac.js`**
+- [x] **Step 1: Add `checkPermission` to `rbac.js`**
 
 Add after the `verificarAcessoUnidade` function and before `module.exports`:
 
@@ -783,7 +783,7 @@ Update `module.exports`:
 module.exports = { authorize, verificarAcessoUnidade, checkPermission, PERFIS, PERFIS_CONTRATADA };
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add src/middlewares/rbac.js
@@ -798,7 +798,7 @@ git commit -m "feat(rbac): add checkPermission middleware"
 - Modify: `frontend/src/types/index.ts`
 - Modify: `frontend/src/contexts/AuthContext.tsx`
 
-- [ ] **Step 1: Add `PermissaoPerfil` to `frontend/src/types/index.ts`**
+- [x] **Step 1: Add `PermissaoPerfil` to `frontend/src/types/index.ts`**
 
 Add at the end of the file:
 
@@ -817,7 +817,7 @@ export interface PermissaoPerfil {
 
 > Note: `can_*` fields are `number` (0 or 1) because MySQL TINYINT is returned as number by Sequelize. Use `Boolean(perm.can_view)` or `perm.can_view === 1` to check.
 
-- [ ] **Step 2: Rewrite `frontend/src/contexts/AuthContext.tsx`**
+- [x] **Step 2: Rewrite `frontend/src/contexts/AuthContext.tsx`**
 
 Replace the entire file with:
 
@@ -1011,7 +1011,7 @@ export function useAuth(): AuthContextType {
 }
 ```
 
-- [ ] **Step 3: Build check**
+- [x] **Step 3: Build check**
 
 ```bash
 cd frontend && npx tsc --noEmit
@@ -1019,7 +1019,7 @@ cd frontend && npx tsc --noEmit
 
 Expected: no errors.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add frontend/src/types/index.ts frontend/src/contexts/AuthContext.tsx
@@ -1034,7 +1034,7 @@ git commit -m "feat(auth): add PermissaoPerfil type, token expiry check, permiss
 - Create: `frontend/src/hooks/usePermission.ts`
 - Modify: `frontend/src/components/layout/ProtectedRoute.tsx`
 
-- [ ] **Step 1: Create `usePermission` hook**
+- [x] **Step 1: Create `usePermission` hook**
 
 ```ts
 // frontend/src/hooks/usePermission.ts
@@ -1051,7 +1051,7 @@ export function usePermission(modulo: string) {
 }
 ```
 
-- [ ] **Step 2: Replace `ProtectedRoute`**
+- [x] **Step 2: Replace `ProtectedRoute`**
 
 ```tsx
 // frontend/src/components/layout/ProtectedRoute.tsx
@@ -1096,7 +1096,7 @@ export default function ProtectedRoute({ children, modulo }: Props) {
 }
 ```
 
-- [ ] **Step 3: Build check**
+- [x] **Step 3: Build check**
 
 ```bash
 cd frontend && npx tsc --noEmit
@@ -1104,7 +1104,7 @@ cd frontend && npx tsc --noEmit
 
 Expected: no errors.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add frontend/src/hooks/usePermission.ts frontend/src/components/layout/ProtectedRoute.tsx
@@ -1119,7 +1119,7 @@ git commit -m "feat(frontend): add usePermission hook and modulo-based Protected
 - Modify: `frontend/src/App.tsx`
 - Modify: `frontend/src/components/SidebarMenu.tsx`
 
-- [ ] **Step 1: Rewrite `frontend/src/App.tsx`**
+- [x] **Step 1: Rewrite `frontend/src/App.tsx`**
 
 ```tsx
 // frontend/src/App.tsx
@@ -1213,7 +1213,7 @@ export default function App() {
 }
 ```
 
-- [ ] **Step 2: Rewrite `SidebarMenu.tsx` to use `canDo` instead of `perfis` arrays**
+- [x] **Step 2: Rewrite `SidebarMenu.tsx` to use `canDo` instead of `perfis` arrays**
 
 Replace the entire file with the version below. Key changes: `NavItem.perfis` → `NavItem.modulo`; `MenuGroup.perfis` removed; `canView` uses `canDo(modulo,'view')`; add Admin group; remove `userPerfil` prop.
 
@@ -1521,13 +1521,13 @@ const SidebarMenu: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
 export default SidebarMenu
 ```
 
-- [ ] **Step 3: Build check — expect no errors**
+- [x] **Step 3: Build check — expect no errors**
 
 ```bash
 cd frontend && npx tsc --noEmit
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add frontend/src/App.tsx frontend/src/components/SidebarMenu.tsx
@@ -1542,7 +1542,7 @@ git commit -m "feat(frontend): replace hardcoded allowedPerfis with DB-driven mo
 - Create: `frontend/src/pages/Admin/types.ts`
 - Create: `frontend/src/pages/Admin/UsuariosFormModal.tsx`
 
-- [ ] **Step 1: Create `frontend/src/pages/Admin/types.ts`**
+- [x] **Step 1: Create `frontend/src/pages/Admin/types.ts`**
 
 ```ts
 // frontend/src/pages/Admin/types.ts
@@ -1598,7 +1598,7 @@ export interface UsuarioFormData {
 }
 ```
 
-- [ ] **Step 2: Create `frontend/src/pages/Admin/UsuariosFormModal.tsx`**
+- [x] **Step 2: Create `frontend/src/pages/Admin/UsuariosFormModal.tsx`**
 
 ```tsx
 // frontend/src/pages/Admin/UsuariosFormModal.tsx
@@ -1803,7 +1803,7 @@ export default function UsuariosFormModal({ usuario, onClose, onSaved }: Props) 
 }
 ```
 
-- [ ] **Step 3: Build check**
+- [x] **Step 3: Build check**
 
 ```bash
 cd frontend && npx tsc --noEmit
@@ -1811,7 +1811,7 @@ cd frontend && npx tsc --noEmit
 
 Expected: no errors.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add frontend/src/pages/Admin/types.ts frontend/src/pages/Admin/UsuariosFormModal.tsx
@@ -1825,7 +1825,7 @@ git commit -m "feat(admin): add user form modal and admin types"
 **Files:**
 - Create: `frontend/src/pages/Admin/UsuariosList.tsx`
 
-- [ ] **Step 1: Create `frontend/src/pages/Admin/UsuariosList.tsx`**
+- [x] **Step 1: Create `frontend/src/pages/Admin/UsuariosList.tsx`**
 
 ```tsx
 // frontend/src/pages/Admin/UsuariosList.tsx
@@ -1995,7 +1995,7 @@ Clean version — replace `handleToggleAtivo` stub and remove unused imports. Fi
 
 Remove `UserCheck` from the import line and remove the `handleToggleAtivo` function entirely. The file above already has `handleDeactivate` which is what the button uses.
 
-- [ ] **Step 2: Fix the file — remove `UserCheck` and `handleToggleAtivo` stub**
+- [x] **Step 2: Fix the file — remove `UserCheck` and `handleToggleAtivo` stub**
 
 In the import line, change:
 ```tsx
@@ -2008,7 +2008,7 @@ import { Plus, Pencil, UserX, RefreshCw } from 'lucide-react'
 
 Remove the entire `handleToggleAtivo` function.
 
-- [ ] **Step 3: Build check**
+- [x] **Step 3: Build check**
 
 ```bash
 cd frontend && npx tsc --noEmit
@@ -2016,7 +2016,7 @@ cd frontend && npx tsc --noEmit
 
 Expected: no errors.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add frontend/src/pages/Admin/UsuariosList.tsx
@@ -2030,7 +2030,7 @@ git commit -m "feat(admin): add UsuariosList page"
 **Files:**
 - Create: `frontend/src/pages/Admin/PermissoesMatrix.tsx`
 
-- [ ] **Step 1: Create `frontend/src/pages/Admin/PermissoesMatrix.tsx`**
+- [x] **Step 1: Create `frontend/src/pages/Admin/PermissoesMatrix.tsx`**
 
 ```tsx
 // frontend/src/pages/Admin/PermissoesMatrix.tsx
@@ -2228,7 +2228,7 @@ export default function PermissoesMatrix() {
 }
 ```
 
-- [ ] **Step 2: Build check**
+- [x] **Step 2: Build check**
 
 ```bash
 cd frontend && npx tsc --noEmit
@@ -2236,7 +2236,7 @@ cd frontend && npx tsc --noEmit
 
 Expected: no errors.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add frontend/src/pages/Admin/PermissoesMatrix.tsx

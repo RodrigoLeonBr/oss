@@ -6,7 +6,8 @@
  * Estratégia: busca IDs de tb_indicadores por código e insere tb_metas com
  * os valores reais extraídos dos PDFs de indicadores de cada unidade.
  *
- * Vigência padrão: 2026-01-01 (sem data de fim = vigente até novo aditivo).
+ * Vigência do contrato/indicador: em tb_indicadores (seed de indicadores).
+ * tb_metas não armazena mais vigência/prazo (migração 20260425120000).
  */
 
 // ─── Metas quantitativas (meta_mensal + meta_anual) ─────────────────────────
@@ -112,7 +113,7 @@ const METAS_QUAL = {
   'HMA-QL-03': { meta_valor_qualit: 100.00 },
   'HMA-QL-04': { meta_valor_qualit: 100.00 },
   'HMA-QL-05': { meta_valor_qualit: 100.00 },
-  'HMA-QL-06': { meta_valor_qualit: 90.00, meta_minima: 80.00 },    // ≥90%
+  'HMA-QL-06': { meta_valor_qualit: 90.00, meta_minima: 88.89 },   // 80/90 ref → % mín.
   'HMA-QL-07': { meta_valor_qualit: 80.00 },                        // ≥80%
   'HMA-QL-08': { meta_valor_qualit: 100.00 },                       // informativo
   'HMA-QL-09': { meta_valor_qualit: 100.00 },
@@ -124,7 +125,7 @@ const METAS_QUAL = {
   'HMA-QL-15': { meta_valor_qualit: 100.00 },
   'HMA-QL-16': { meta_valor_qualit: 100.00 },
   'HMA-QL-17': { meta_valor_qualit: 100.00 },
-  'HMA-QL-18': { meta_valor_qualit: 85.00, meta_minima: 70.00 },    // ≥85%
+  'HMA-QL-18': { meta_valor_qualit: 85.00, meta_minima: 82.35 },   // 70/85 ref → % mín.
 
   // HMA — Informativos qualidade na atenção
   'HMA-QL-19': { meta_valor_qualit: 15000.00, unidade_medida: 'atendimentos/mês' },
@@ -186,13 +187,13 @@ const METAS_QUAL = {
   'CIL-QL-06': { meta_valor_qualit: 100.00 },
   'CIL-QL-07': { meta_valor_qualit: 100.00 },
   'CIL-QL-08': { meta_valor_qualit: 100.00 },
-  'CIL-QL-09': { meta_valor_qualit: 90.00, meta_minima: 80.00 },    // ≥90%
+  'CIL-QL-09': { meta_valor_qualit: 90.00, meta_minima: 88.89 },
 
   // UPA Dona Rosa — Qualitativos pontuáveis
   'DR-QL-01': { meta_valor_qualit: 100.00 },
   'DR-QL-02': { meta_valor_qualit: 100.00 },
   'DR-QL-03': { meta_valor_qualit: 100.00 },
-  'DR-QL-04': { meta_valor_qualit: 90.00, meta_minima: 80.00 },
+  'DR-QL-04': { meta_valor_qualit: 90.00, meta_minima: 88.89 },
   'DR-QL-05': { meta_valor_qualit: 100.00 },
   'DR-QL-06': { meta_valor_qualit: 100.00 },
   'DR-QL-07': { meta_valor_qualit: 100.00 },
@@ -222,21 +223,23 @@ module.exports = {
       'SELECT indicador_id, codigo, tipo FROM tb_indicadores ORDER BY codigo'
     );
 
-    const VIGENCIA = '2026-01-01';
-
     const metas = indicadores.map((ind) => {
+      const nomeBase = `Meta ${ind.codigo}`;
       if (ind.tipo === 'quantitativo') {
         const d = METAS_QUANT[ind.codigo] || {};
         return {
           indicador_id: ind.indicador_id,
           versao: 1,
-          vigencia_inicio: VIGENCIA,
+          vigencia_inicio: null,
+          vigencia_fim: null,
+          prazo_implantacao: null,
           meta_mensal: d.meta_mensal ?? null,
           meta_anual: d.meta_anual ?? null,
           meta_valor_qualit: null,
           meta_minima: null,
           meta_parcial: null,
           unidade_medida: 'unidades',
+          nome: d.nome ?? nomeBase,
           observacoes: d.observacoes ?? null,
         };
       }
@@ -246,13 +249,16 @@ module.exports = {
       return {
         indicador_id: ind.indicador_id,
         versao: 1,
-        vigencia_inicio: VIGENCIA,
+        vigencia_inicio: null,
+        vigencia_fim: null,
+        prazo_implantacao: null,
         meta_mensal: null,
         meta_anual: null,
         meta_valor_qualit: d.meta_valor_qualit ?? null,
         meta_minima: d.meta_minima ?? null,
         meta_parcial: d.meta_parcial ?? null,
         unidade_medida: d.unidade_medida ?? '%',
+        nome: d.nome ?? nomeBase,
         observacoes: d.observacoes ?? null,
       };
     });

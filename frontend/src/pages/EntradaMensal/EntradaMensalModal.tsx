@@ -2,12 +2,13 @@
 import { useState, useEffect, useRef } from 'react'
 import { X, Target, AlertCircle, Loader2 } from 'lucide-react'
 import type { AcompanhamentoRecord } from './types'
-import { STATUS_LABELS, STATUS_BADGE, calcularStatusPreview, unwrap } from './types'
+import { STATUS_LABELS, STATUS_BADGE, calcularStatusPreview } from './types'
 import { useApi, ApiError } from '../../hooks/useApi'
 
 interface Props {
   acompanhamento: AcompanhamentoRecord
-  onSalvo: (atualizado: AcompanhamentoRecord) => void
+  /** Chamado após sucesso; a lista recarrega no pai para F ponderado e demais linhas. */
+  onSalvo: () => void
   onFechar: () => void
 }
 
@@ -58,13 +59,19 @@ export default function EntradaMensalModal({ acompanhamento: ac, onSalvo, onFech
   const api = useApi()
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const [valorStr, setValorStr] = useState(ac.valorRealizado?.toString() ?? '')
-  const [descricao, setDescricao] = useState(ac.descricaoDesvios ?? '')
+  const [valorStr, setValorStr] = useState(() => ac.valorRealizado?.toString() ?? '')
+  const [descricao, setDescricao] = useState(() => ac.descricaoDesvios ?? '')
   const [erros, setErros] = useState<{ valor?: string; descricao?: string }>({})
   const [loading, setLoading] = useState(false)
   const [apiError, setApiError] = useState<string | null>(null)
 
-  useEffect(() => { inputRef.current?.focus() }, [])
+  useEffect(() => {
+    setValorStr(ac.valorRealizado?.toString() ?? '')
+    setDescricao(ac.descricaoDesvios ?? '')
+    setErros({})
+    setApiError(null)
+    queueMicrotask(() => inputRef.current?.focus())
+  }, [ac.indicadorId, ac.metaId, ac.id, ac.mesReferencia])
 
   const valor = valorStr === '' ? null : parseFloat(valorStr)
   const statusPreview = calcularStatusPreview(ac.metaTipo, valor, ac.metaParcial, ac.metaMinima)
@@ -87,27 +94,30 @@ export default function EntradaMensalModal({ acompanhamento: ac, onSalvo, onFech
 
   async function handleSubmit(ev: React.FormEvent) {
     ev.preventDefault()
+    if (ac.somenteExibicao || ac.papelMeta === 'agregada') {
+      setApiError('A meta agregada (total do pacote) não recebe lançamento. Use as sub-metas (componentes).')
+      return
+    }
     if (!validate()) return
     setLoading(true)
     setApiError(null)
     try {
-      let result: AcompanhamentoRecord
       if (ac.id === null) {
-        const raw = await api.post('/acompanhamentos', {
+        const body: Record<string, unknown> = {
           indicadorId: ac.indicadorId,
           mesReferencia: ac.mesReferencia,
           valorRealizado: valor,
           descricaoDesvios: descricao || null,
-        })
-        result = unwrap(raw) as AcompanhamentoRecord
+        }
+        if (ac.metaId) body.metaId = ac.metaId
+        await api.post('/acompanhamentos', body)
       } else {
-        const raw = await api.put(`/acompanhamentos/${ac.id}`, {
+        await api.put(`/acompanhamentos/${ac.id}`, {
           valorRealizado: valor,
           descricaoDesvios: descricao || null,
         })
-        result = unwrap(raw) as AcompanhamentoRecord
       }
-      onSalvo(result)
+      onSalvo()
     } catch (e) {
       if (e instanceof ApiError) setApiError(e.message)
       else setApiError('Erro ao salvar. Tente novamente.')
@@ -118,6 +128,32 @@ export default function EntradaMensalModal({ acompanhamento: ac, onSalvo, onFech
 
   const metaPrincipal = ac.metaVigenteMensal ?? ac.metaVigenteQualit
   const percBar = metaPrincipal && valor !== null ? Math.min(100, (valor / metaPrincipal) * 100) : 0
+
+  if (ac.somenteExibicao || ac.papelMeta === 'agregada') {
+    return (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+        onClick={e => { if (e.target === e.currentTarget) onFechar() }}
+      >
+        <div className="w-full max-w-md rounded-2xl bg-surface shadow-xl p-6">
+          <h2 className="text-sm font-semibold text-text-primary">Somente leitura</h2>
+          <p className="mt-2 text-sm text-text-secondary">
+            O <strong>total do pacote</strong> (meta agregada) é para conferência. Lance o realizado em cada <strong>sub-meta</strong> ou
+            em <strong>meta avulsa</strong>, evitando dupla contagem.
+          </p>
+          <div className="mt-4 flex justify-end">
+            <button
+              type="button"
+              onClick={onFechar}
+              className="rounded-xl px-4 py-2 text-sm font-medium bg-primary text-white hover:bg-primary/90"
+            >
+              Fechar
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div
@@ -132,6 +168,11 @@ export default function EntradaMensalModal({ acompanhamento: ac, onSalvo, onFech
           </div>
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-text-primary truncate">{ac.indicador.nome}</p>
+            {ac.nomeMeta && (
+              <p className="text-xs text-text-secondary truncate" title="Linha de meta (tb_metas)">
+                {ac.papelMeta === 'componente' ? 'Sub-meta: ' : 'Meta: '}{ac.nomeMeta}
+              </p>
+            )}
             <p className="text-xs text-text-secondary capitalize">{mesLabel}</p>
           </div>
           <button
@@ -142,12 +183,16 @@ export default function EntradaMensalModal({ acompanhamento: ac, onSalvo, onFech
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4 overflow-y-auto px-6 py-4">
+        <form
+          id="entrada-mensal-form"
+          onSubmit={handleSubmit}
+          className="flex flex-col gap-4 overflow-y-auto px-6 py-4"
+        >
           {/* Bloco de contexto */}
           <div className="rounded-xl bg-surface-alt p-4 flex flex-col gap-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-text-secondary">Meta principal</span>
-              <span className="font-mono font-medium text-text-primary">
+            <div className="flex justify-between gap-2">
+              <span className="text-text-secondary shrink-0">Ref. (este mês)</span>
+              <span className="font-mono font-medium text-text-primary text-right">
                 {metaPrincipal ?? '—'}
                 {ac.indicador.unidadeMedida ? ` ${ac.indicador.unidadeMedida}` : ''}
               </span>
@@ -160,6 +205,16 @@ export default function EntradaMensalModal({ acompanhamento: ac, onSalvo, onFech
             <span className="text-xs text-text-secondary">
               {ac.metaTipo === 'maior_igual' ? '↑ maior é melhor' : '↓ menor é melhor'}
             </span>
+            {ac.papelMeta === 'componente' && (
+              <p className="text-xs text-text-secondary border-t border-border/80 pt-2 mt-1">
+                Este lançamento é de uma <strong>sub-meta</strong> do indicador. O <strong>cumprimento global
+                (F)</strong> combina as sub-metas com <strong>peso</strong>; o <strong>%</strong> da barra abaixo
+                refere-se <strong>só a esta linha</strong>.
+                {ac.realizadoSomaComponentes != null && (
+                  <> Soma dos realizados das sub-metas no mês: <span className="font-mono">{ac.realizadoSomaComponentes}</span>.</>
+                )}
+              </p>
+            )}
           </div>
 
           {/* Campo valor */}
@@ -230,7 +285,8 @@ export default function EntradaMensalModal({ acompanhamento: ac, onSalvo, onFech
             Cancelar
           </button>
           <button
-            onClick={handleSubmit}
+            type="submit"
+            form="entrada-mensal-form"
             disabled={loading}
             className="rounded-xl px-5 py-2 text-sm font-medium bg-primary text-white hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center gap-2"
           >

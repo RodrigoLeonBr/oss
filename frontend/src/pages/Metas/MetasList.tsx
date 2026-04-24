@@ -7,11 +7,11 @@ import {
   X as XIcon, ArrowLeft,
 } from 'lucide-react'
 import { useApi, ApiError } from '../../hooks/useApi'
-import { useAuth } from '../../contexts/AuthContext'
-import type { MetaRecord } from './types'
+import { usePermission } from '../../hooks/usePermission'
+import type { MetaRecord, MetaPapel } from './types'
 import {
   STATUS_LABELS, STATUS_BADGE, STATUS_DOT,
-  formatarValor, formatarData, unwrap, mockMetas,
+  formatarValor, formatarData, unwrap, mockMetas, PAPEL_LABEL,
 } from './types'
 import type { IndicadorRecord } from '../Indicadores/types'
 import { mockIndicadores } from '../Indicadores/types'
@@ -26,7 +26,7 @@ let toastId = 0
 function SkeletonRow() {
   return (
     <div className="flex animate-pulse items-center gap-3 border-b border-border-subtle px-4 py-3">
-      {[56, 100, 100, 100, 100, 100, 80].map((w, i) => (
+      {[24, 56, 120, 100, 100, 100, 100, 56, 100, 80, 80].map((w, i) => (
         <div key={i} className="h-3.5 rounded bg-surface-alt" style={{ width: w, flexShrink: 0 }} />
       ))}
       <div className="h-5 w-16 shrink-0 rounded-full bg-surface-alt" />
@@ -39,34 +39,58 @@ function SkeletonRow() {
 }
 
 // ── Sort ──────────────────────────────────────────────────────────────────────
-type SortKey = 'versao' | 'vigenciaInicio' | 'metaMensal' | 'metaValorQualit' | 'metaAnual' | 'status'
+type SortKey = 'versao' | 'nome' | 'vigenciaInicio' | 'metaMensal' | 'metaValorQualit' | 'metaAnual' | 'status'
 type SortDir = 'asc' | 'desc'
 
 // ── Column layout ─────────────────────────────────────────────────────────────
-// Versão(56) | Vigência(200) | Meta Mensal(100) | Meta Qualit(100) | Meta Anual(100) | Medida(90) | Status(80) | Ações(72)
-const COL   = 'grid-cols-[56px_200px_100px_100px_100px_90px_80px_72px]'
-const MIN_W = 850
+// Exp(28) | Versão(72) | Nome(160) | Vigência(180) | Mensal | Qualit | Anual | Peso(56) | Medida | Status | Ações
+const COL   = 'grid-cols-[28px_72px_160px_180px_100px_100px_100px_56px_90px_80px_72px]'
+const MIN_W = 1128
+
+// ── Display row (raiz ou componente expandido) ───────────────────────────────
+interface DisplayRow {
+  meta: MetaRecord
+  depth: number
+}
 
 // ── Row props ─────────────────────────────────────────────────────────────────
 interface RowProps {
-  rows: MetaRecord[]
-  canWrite: boolean
+  rows: DisplayRow[]
+  canUpdate: boolean
+  canDelete: boolean
+  expandedIds: string[]
+  onToggleExpand: (id: string) => void
   onEdit: (m: MetaRecord) => void
   onDelete: (m: MetaRecord) => void
 }
 
 // ── Row component (react-window v2 API) ───────────────────────────────────────
+function papelCurto(p: MetaPapel | undefined): string {
+  if (p === 'agregada') return 'Pkg'
+  if (p === 'componente') return 'Cmp'
+  return 'Avl'
+}
+
 function MetaRow({
   ariaAttributes,
   index,
   style,
   rows,
-  canWrite,
+  canUpdate,
+  canDelete,
+  expandedIds,
+  onToggleExpand,
   onEdit,
   onDelete,
 }: RowComponentProps<RowProps>) {
-  const m = rows[index]
-  if (!m) return null
+  const dr = rows[index]
+  if (!dr) return null
+  const m = dr.meta
+  const depth = dr.depth
+  const papel = m.papel ?? 'avulsa'
+  const kids = m.children && m.children.length > 0
+  const isParent = papel === 'agregada' && kids
+  const open = expandedIds.includes(m.id)
 
   return (
     <div
@@ -76,12 +100,41 @@ function MetaRow({
       aria-setsize={ariaAttributes['aria-setsize']}
       aria-rowindex={index + 2}
       className={`grid ${COL} items-center gap-3 border-b border-border-subtle px-4 text-sm transition-colors hover:bg-hover ${
-        index % 2 === 0 ? 'bg-surface' : 'bg-surface-alt/30'
+        depth > 0 ? 'bg-primary/5' : index % 2 === 0 ? 'bg-surface' : 'bg-surface-alt/30'
       }`}
     >
-      {/* Versão */}
-      <div role="cell">
-        <span className="font-mono text-xs font-semibold text-text-primary">v{m.versao}</span>
+      {/* Expandir pacote */}
+      <div role="cell" className="flex justify-center">
+        {isParent ? (
+          <button
+            type="button"
+            aria-expanded={open}
+            aria-label={open ? 'Recolher componentes' : 'Expandir componentes'}
+            onClick={() => onToggleExpand(m.id)}
+            className="rounded p-0.5 text-text-muted hover:bg-hover hover:text-text-primary"
+          >
+            {open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          </button>
+        ) : (
+          <span className="inline-block w-4" />
+        )}
+      </div>
+
+      {/* Versão + papel */}
+      <div role="cell" className="min-w-0" style={{ paddingLeft: depth > 0 ? 8 : 0 }}>
+        <p className="font-mono text-xs font-semibold text-text-primary">
+          {depth > 0 ? '↳ ' : ''}v{m.versao}
+        </p>
+        <p className="text-[10px] text-text-faint" title={PAPEL_LABEL[papel]}>
+          {papelCurto(m.papel)}
+        </p>
+      </div>
+
+      {/* Nome */}
+      <div role="cell" className="min-w-0" title={m.nome || undefined}>
+        <p className="line-clamp-2 text-xs text-text-primary">
+          {m.nome || m.observacoes || '—'}
+        </p>
       </div>
 
       {/* Vigência */}
@@ -114,6 +167,13 @@ function MetaRow({
         </span>
       </div>
 
+      {/* Peso (componente) */}
+      <div role="cell" className="text-right">
+        <span className="font-mono text-xs text-text-primary" title="Peso no grupo (média ponderada)">
+          {m.peso != null && m.peso !== undefined ? m.peso : '—'}
+        </span>
+      </div>
+
       {/* Medida */}
       <div role="cell" className="min-w-0">
         <p className="truncate text-xs text-text-secondary">{m.unidadeMedida || '—'}</p>
@@ -127,27 +187,27 @@ function MetaRow({
         </span>
       </div>
 
-      {/* Ações */}
+      {/* Ações (só raiz; componentes filhos na expansão) */}
       <div role="cell" className="flex items-center gap-1">
-        {canWrite && (
-          <>
-            <button
-              type="button"
-              onClick={() => onEdit(m)}
-              aria-label={`Editar versão ${m.versao}`}
-              className="rounded-lg p-1.5 text-text-faint transition-colors hover:bg-primary/10 hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
-            >
-              <Edit3 size={15} />
-            </button>
-            <button
-              type="button"
-              onClick={() => onDelete(m)}
-              aria-label={`Excluir versão ${m.versao}`}
-              className="rounded-lg p-1.5 text-text-faint transition-colors hover:bg-status-bad-bg hover:text-status-bad focus-visible:outline focus-visible:outline-2 focus-visible:outline-status-bad"
-            >
-              <Trash2 size={15} />
-            </button>
-          </>
+        {depth === 0 && canUpdate && (
+          <button
+            type="button"
+            onClick={() => onEdit(m)}
+            aria-label={`Editar versão ${m.versao}`}
+            className="rounded-lg p-1.5 text-text-faint transition-colors hover:bg-primary/10 hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+          >
+            <Edit3 size={15} />
+          </button>
+        )}
+        {depth === 0 && canDelete && (
+          <button
+            type="button"
+            onClick={() => onDelete(m)}
+            aria-label={`Excluir versão ${m.versao}`}
+            className="rounded-lg p-1.5 text-text-faint transition-colors hover:bg-status-bad-bg hover:text-status-bad focus-visible:outline focus-visible:outline-2 focus-visible:outline-status-bad"
+          >
+            <Trash2 size={15} />
+          </button>
         )}
       </div>
     </div>
@@ -159,8 +219,7 @@ export default function MetasList() {
   const { indicadorId } = useParams<{ indicadorId: string }>()
   const navigate = useNavigate()
   const { get, del } = useApi()
-  const { hasPermission } = useAuth()
-  const canWrite = hasPermission(['admin', 'gestor_sms'])
+  const { canInsert, canUpdate, canDelete } = usePermission('metas')
 
   const [lista, setLista]                     = useState<MetaRecord[]>([])
   const [loading, setLoading]                 = useState(true)
@@ -172,6 +231,7 @@ export default function MetasList() {
   const [sortKey, setSortKey]                 = useState<SortKey>('versao')
   const [sortDir, setSortDir]                 = useState<SortDir>('desc')
   const [toasts, setToasts]                   = useState<Toast[]>([])
+  const [expandedIds, setExpandedIds]         = useState<string[]>([])
 
   const [formModal, setFormModal]     = useState<{ open: boolean; meta?: MetaRecord }>({ open: false })
   const [deleteModal, setDeleteModal] = useState<{ open: boolean; meta?: MetaRecord }>({ open: false })
@@ -254,6 +314,7 @@ export default function MetasList() {
       const q = busca.toLowerCase()
       items = items.filter(m =>
         String(m.versao).includes(q) ||
+        (m.nome ?? '').toLowerCase().includes(q) ||
         (m.unidadeMedida ?? '').toLowerCase().includes(q) ||
         (m.observacoes ?? '').toLowerCase().includes(q),
       )
@@ -264,7 +325,8 @@ export default function MetasList() {
       let va: string | number, vb: string | number
       switch (sortKey) {
         case 'versao':         va = a.versao;            vb = b.versao;            break
-        case 'vigenciaInicio': va = a.vigenciaInicio;    vb = b.vigenciaInicio;    break
+        case 'nome':           va = a.nome ?? '';      vb = b.nome ?? '';      break
+        case 'vigenciaInicio': va = a.vigenciaInicio ?? ''; vb = b.vigenciaInicio ?? ''; break
         case 'metaMensal':     va = a.metaMensal ?? 0;   vb = b.metaMensal ?? 0;   break
         case 'metaValorQualit': va = a.metaValorQualit ?? 0; vb = b.metaValorQualit ?? 0; break
         case 'metaAnual':      va = a.metaAnual ?? 0;    vb = b.metaAnual ?? 0;    break
@@ -279,6 +341,25 @@ export default function MetasList() {
 
     return items
   }, [lista, busca, filtroStatus, sortKey, sortDir])
+
+  const displayRows: DisplayRow[] = useMemo(() => {
+    const ex = new Set(expandedIds)
+    const out: DisplayRow[] = []
+    for (const m of filtrados) {
+      out.push({ meta: m, depth: 0 })
+      const kids = m.children
+      if (m.papel === 'agregada' && kids?.length && ex.has(m.id)) {
+        for (const ch of kids) {
+          out.push({ meta: ch, depth: 1 })
+        }
+      }
+    }
+    return out
+  }, [filtrados, expandedIds])
+
+  const toggleExpand = useCallback((id: string) => {
+    setExpandedIds(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]))
+  }, [])
 
   function handleSort(col: SortKey) {
     setSortDir(prev => sortKey === col ? (prev === 'asc' ? 'desc' : 'asc') : 'asc')
@@ -341,16 +422,25 @@ export default function MetasList() {
 
   const rowProps: RowProps = useMemo(
     () => ({
-      rows: filtrados,
-      canWrite,
-      onEdit:   (m) => setFormModal({ open: true, meta: m }),
+      rows: displayRows,
+      canUpdate,
+      canDelete,
+      expandedIds,
+      onToggleExpand: toggleExpand,
+      onEdit: (m) => {
+        if (m.papel === 'agregada' && m.children && m.children.length > 0) {
+          addToast('erro', 'Pacote decomposto: edição ainda não está disponível. Exclua a versão e crie outra, se necessário.')
+          return
+        }
+        setFormModal({ open: true, meta: m })
+      },
       onDelete: (m) => setDeleteModal({ open: true, meta: m }),
     }),
-    [filtrados, canWrite],
+    [displayRows, canUpdate, canDelete, expandedIds, toggleExpand, addToast],
   )
 
-  const ROW_HEIGHT = 52
-  const listHeight = Math.min(filtrados.length * ROW_HEIGHT, 520)
+  const ROW_HEIGHT = 56
+  const listHeight = Math.min(displayRows.length * ROW_HEIGHT, 520)
   const hasFilters = busca || filtroStatus
 
   const statsCards = [
@@ -449,7 +539,7 @@ export default function MetasList() {
           >
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
           </button>
-          {canWrite && (
+          {canInsert && (
             <button
               type="button"
               onClick={() => setFormModal({ open: true })}
@@ -488,7 +578,7 @@ export default function MetasList() {
             type="search"
             value={busca}
             onChange={e => setBusca(e.target.value)}
-            placeholder="Buscar por versão, medida ou observações…"
+            placeholder="Buscar por nome, versão, medida…"
             aria-label="Buscar metas"
             className="w-full rounded-xl border border-border-subtle bg-surface py-2 pl-9 pr-9 text-sm text-text-primary placeholder:text-text-faint focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/40"
           />
@@ -535,11 +625,14 @@ export default function MetasList() {
             {/* Header */}
             <div role="rowgroup" className="shrink-0 border-b border-border-subtle bg-primary text-white">
               <div role="row" aria-rowindex={1} className={`grid ${COL} items-center gap-3 px-4 py-3 text-xs`}>
+                <div role="columnheader" className="font-medium text-white/50" />
                 <div role="columnheader"><SortBtn col="versao">Versão</SortBtn></div>
+                <div role="columnheader"><SortBtn col="nome">Nome</SortBtn></div>
                 <div role="columnheader"><SortBtn col="vigenciaInicio">Vigência</SortBtn></div>
                 <div role="columnheader" className="text-right"><SortBtn col="metaMensal">Mensal</SortBtn></div>
                 <div role="columnheader" className="text-right"><SortBtn col="metaValorQualit">Qualit.</SortBtn></div>
                 <div role="columnheader" className="text-right"><SortBtn col="metaAnual">Anual</SortBtn></div>
+                <div role="columnheader" className="text-right font-medium text-white/70" title="Peso na média ponderada (componentes)">Peso</div>
                 <div role="columnheader" className="font-medium text-white/70">Medida</div>
                 <div role="columnheader"><SortBtn col="status">Status</SortBtn></div>
                 <div role="columnheader" className="font-medium text-white/70">Ações</div>
@@ -551,7 +644,7 @@ export default function MetasList() {
               <div role="status" aria-label="Carregando metas">
                 {Array.from({ length: 4 }).map((_, i) => <SkeletonRow key={i} />)}
               </div>
-            ) : filtrados.length === 0 ? (
+            ) : displayRows.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
                 <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-surface-alt text-text-faint">
                   <Target size={28} />
@@ -562,7 +655,7 @@ export default function MetasList() {
                 <p className="text-sm text-text-muted">
                   {hasFilters
                     ? 'Tente outros termos ou limpe os filtros.'
-                    : canWrite
+                    : canInsert
                       ? 'Clique em "Nova Meta" para começar.'
                       : 'Entre em contato com o administrador.'}
                 </p>
@@ -571,12 +664,12 @@ export default function MetasList() {
               <div
                 role="table"
                 aria-label="Lista de Metas"
-                aria-rowcount={filtrados.length + 1}
+                aria-rowcount={displayRows.length + 1}
               >
                 <div role="rowgroup">
                   <List
                     rowComponent={MetaRow}
-                    rowCount={filtrados.length}
+                    rowCount={displayRows.length}
                     rowHeight={ROW_HEIGHT}
                     rowProps={rowProps}
                     overscanCount={5}
@@ -589,11 +682,12 @@ export default function MetasList() {
         </div>
 
         {/* Footer */}
-        {!loading && filtrados.length > 0 && (
+        {!loading && displayRows.length > 0 && (
           <div className="flex shrink-0 items-center justify-between border-t border-border-subtle px-4 py-2.5 text-xs text-text-muted">
             <span>
-              Exibindo <strong className="text-text-secondary">{filtrados.length}</strong> de{' '}
-              <strong className="text-text-secondary">{lista.length}</strong> versões
+              Exibindo <strong className="text-text-secondary">{displayRows.length}</strong> linha
+              {displayRows.length !== 1 ? 's' : ''} ({filtrados.length} versão
+              {filtrados.length !== 1 ? 'ões' : ''} raiz)
             </span>
             <span>
               Ordenado por: <strong className="text-text-secondary">{sortKey}</strong>{' '}
@@ -609,6 +703,13 @@ export default function MetasList() {
           meta={formModal.meta}
           indicadorId={indicadorId}
           indicadorTipo={indicador?.tipo ?? 'producao'}
+          indicadorVigencia={indicador
+            ? {
+                vigenciaInicio: indicador.vigenciaInicio ?? null,
+                vigenciaFim:    indicador.vigenciaFim ?? null,
+                prazoImplantacao: indicador.prazoImplantacao ?? null,
+              }
+            : null}
           onSalvo={handleSalvo}
           onFechar={() => setFormModal({ open: false })}
         />

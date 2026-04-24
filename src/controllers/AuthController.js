@@ -72,9 +72,13 @@ class AuthController {
                 req.body.refresh_token,
                 tokenTypes.REFRESH,
             );
-            const user = await this.userService.getUserByUuid(refreshTokenDoc.user_uuid);
+            const models = require('../models');
+            const user = await models.usuario.findOne({
+                where: { usuario_id: refreshTokenDoc.user_uuid, ativo: 1 },
+            });
             if (user == null) {
                 res.status(httpStatus.BAD_GATEWAY).send('User Not Found!');
+                return;
             }
             await this.tokenService.removeTokenById(refreshTokenDoc.id);
             const tokens = await this.tokenService.generateAuthTokens(user);
@@ -92,6 +96,21 @@ class AuthController {
         } catch (e) {
             logger.error(e);
             res.status(httpStatus.BAD_GATEWAY).send(e);
+        }
+    };
+
+    mePermissions = async (req, res) => {
+        try {
+            const models = require('../models');
+            const perfil = req.user.perfil || req.user.dataValues?.perfil;
+            const rows = await models.permissaoPerfil.findAll({
+                where: { perfil },
+                order: [['modulo', 'ASC']],
+            });
+            res.status(httpStatus.OK).json({ status: true, data: rows });
+        } catch (e) {
+            logger.error(e);
+            res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ status: false, message: e.message });
         }
     };
 }

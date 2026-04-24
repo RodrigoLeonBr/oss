@@ -1,19 +1,19 @@
 const express = require('express');
 const UnidadeController = require('../controllers/UnidadeController');
 const auth = require('../middlewares/auth');
-const { authorize, PERFIS } = require('../middlewares/rbac');
+const { checkPermission } = require('../middlewares/rbac');
 const { auditar, auditarVisualizacao } = require('../middlewares/auditoria');
 
 const router = express.Router();
 const controller = new UnidadeController();
 
-router.get('/', auth(), controller.listar);
-router.get('/:id', auth(), auditarVisualizacao('tb_unidades'), controller.buscarPorId);
+router.get('/', auth(), checkPermission('unidades', 'view'), controller.listar);
+router.get('/:id', auth(), checkPermission('unidades', 'view'), auditarVisualizacao('tb_unidades'), controller.buscarPorId);
 
 router.post(
     '/',
     auth(),
-    authorize(PERFIS.ADMIN, PERFIS.GESTOR_SMS),
+    checkPermission('unidades', 'insert'),
     auditar('tb_unidades', 'INSERT'),
     controller.criar,
 );
@@ -21,7 +21,7 @@ router.post(
 router.put(
     '/:id',
     auth(),
-    authorize(PERFIS.ADMIN, PERFIS.GESTOR_SMS),
+    checkPermission('unidades', 'update'),
     auditar('tb_unidades', 'UPDATE'),
     controller.atualizar,
 );
@@ -29,7 +29,7 @@ router.put(
 router.delete(
     '/:id',
     auth(),
-    authorize(PERFIS.ADMIN),
+    checkPermission('unidades', 'delete'),
     auditar('tb_unidades', 'DELETE'),
     controller.remover,
 );

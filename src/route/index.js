@@ -8,6 +8,8 @@ const contratoRoute = require('./contratoRoute');
 const descontoRoute = require('./descontoRoute');
 const metaRoute = require('./metaRoute');
 const acompanhamentosRoute = require('./acompanhamentosRoute');
+const usuarioRoute = require('./usuarioRoute');
+const permissaoRoute = require('./permissaoRoute');
 
 const router = express.Router();
 
@@ -25,6 +27,8 @@ const defaultRoutes = [
     { path: '/descontos', route: descontoRoute },
     { path: '/metas', route: metaRoute },
     { path: '/acompanhamentos', route: acompanhamentosRoute },
+    { path: '/usuarios', route: usuarioRoute },
+    { path: '/permissoes', route: permissaoRoute },
 ];
 
 defaultRoutes.forEach((route) => {

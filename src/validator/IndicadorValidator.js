@@ -17,6 +17,10 @@ const criarIndicador = Joi.object({
                        .messages({ 'any.required': 'metaPadrao é obrigatório', 'number.min': 'metaPadrao deve ser ≥ 0' }),
     unidadeMedida:  Joi.string().max(50).required()
                        .messages({ 'any.required': 'unidadeMedida é obrigatória' }),
+    vigenciaInicio: Joi.string().isoDate().required()
+                       .messages({ 'any.required': 'vigenciaInicio é obrigatória' }),
+    vigenciaFim:    Joi.string().isoDate().optional().allow(null, ''),
+    prazoImplantacao: Joi.string().isoDate().optional().allow(null, ''),
     status:         Joi.string().valid('ativo', 'inativo').optional().default('ativo'),
 
     // Campos legado aceitos mas ignorados pelo novo service (compatibilidade)
@@ -38,6 +42,9 @@ const atualizarIndicador = Joi.object({
     tipo:           Joi.string().valid('producao', 'qualidade').optional(),
     metaPadrao:     Joi.number().min(0).max(9999.99).precision(2).optional(),
     unidadeMedida:  Joi.string().max(50).optional().allow('', null),
+    vigenciaInicio: Joi.string().isoDate().optional().allow(null, ''),
+    vigenciaFim:    Joi.string().isoDate().optional().allow(null, ''),
+    prazoImplantacao: Joi.string().isoDate().optional().allow(null, ''),
     status:         Joi.string().valid('ativo', 'inativo').optional(),
 
     // Legado

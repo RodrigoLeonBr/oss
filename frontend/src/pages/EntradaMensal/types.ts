@@ -1,9 +1,22 @@
 // frontend/src/pages/EntradaMensal/types.ts
 
+export type PapelMeta = 'avulsa' | 'agregada' | 'componente'
+
 export interface AcompanhamentoRecord {
   id: string | null
   indicadorId: string
   metaId: string | null
+  /** `parent_meta_id` da meta (null em avulsa/agregada raiz) */
+  parentMetaId?: string | null
+  /** Linha sintética de meta agregada (total do pacote): só exibição, sem lançamento */
+  somenteExibicao?: boolean
+  /** Rótulo da linha em tb_metas (sub-meta ou avulsa); agregada não entra na listagem de lançamento */
+  nomeMeta?: string | null
+  papelMeta?: PapelMeta
+  /** F global 0–1 do pacote (só metas componente do mesmo agrupamento) */
+  cumprimentoPonderadoNoGrupo?: number | null
+  /** Soma dos realizados das componentes do mesmo pai (componente) */
+  realizadoSomaComponentes?: number | null
   mesReferencia: string
   metaVigenteMensal: number | null
   metaVigenteQualit: number | null
@@ -70,6 +83,9 @@ export const mockAcompanhamentos: AcompanhamentoRecord[] = [
     id: null,
     indicadorId: 'i1111111-1111-1111-1111-111111111111',
     metaId: 'm1111111-1111-1111-1111-111111111111',
+    parentMetaId: null,
+    nomeMeta: 'Meta avulsa exemplo',
+    papelMeta: 'avulsa',
     mesReferencia: '2026-04-01',
     metaVigenteMensal: 1200,
     metaVigenteQualit: null,
@@ -94,6 +110,9 @@ export const mockAcompanhamentos: AcompanhamentoRecord[] = [
     id: 'a2222222-2222-2222-2222-222222222222',
     indicadorId: 'i2222222-2222-2222-2222-222222222222',
     metaId: 'm3333333-3333-3333-3333-333333333333',
+    parentMetaId: null,
+    nomeMeta: null,
+    papelMeta: 'avulsa',
     mesReferencia: '2026-04-01',
     metaVigenteMensal: null,
     metaVigenteQualit: 30,

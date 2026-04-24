@@ -7,7 +7,7 @@ import {
   X as XIcon, Filter, BarChart3,
 } from 'lucide-react'
 import { useApi, ApiError } from '../../hooks/useApi'
-import { useAuth } from '../../contexts/AuthContext'
+import { usePermission } from '../../hooks/usePermission'
 import type { UnidadeRecord } from './types'
 import {
   TIPO_LABELS,
@@ -51,7 +51,8 @@ const MIN_W = 1080
 // ── Row props ─────────────────────────────────────────────────────────────────
 interface RowProps {
   rows: UnidadeRecord[]
-  canWrite: boolean
+  canUpdate: boolean
+  canDelete: boolean
   onEdit: (u: UnidadeRecord) => void
   onDelete: (u: UnidadeRecord) => void
   onIndicadores: (u: UnidadeRecord) => void
@@ -63,7 +64,8 @@ function UnidadeRow({
   index,
   style,
   rows,
-  canWrite,
+  canUpdate,
+  canDelete,
   onEdit,
   onDelete,
   onIndicadores,
@@ -149,25 +151,25 @@ function UnidadeRow({
         >
           <BarChart3 size={15} />
         </button>
-        {canWrite && (
-          <>
-            <button
-              type="button"
-              onClick={() => onEdit(u)}
-              aria-label={`Editar unidade ${u.nome}`}
-              className="rounded-lg p-1.5 text-text-faint transition-colors hover:bg-primary/10 hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
-            >
-              <Edit3 size={15} />
-            </button>
-            <button
-              type="button"
-              onClick={() => onDelete(u)}
-              aria-label={`Excluir unidade ${u.nome}`}
-              className="rounded-lg p-1.5 text-text-faint transition-colors hover:bg-status-bad-bg hover:text-status-bad focus-visible:outline focus-visible:outline-2 focus-visible:outline-status-bad"
-            >
-              <Trash2 size={15} />
-            </button>
-          </>
+        {canUpdate && (
+          <button
+            type="button"
+            onClick={() => onEdit(u)}
+            aria-label={`Editar unidade ${u.nome}`}
+            className="rounded-lg p-1.5 text-text-faint transition-colors hover:bg-primary/10 hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+          >
+            <Edit3 size={15} />
+          </button>
+        )}
+        {canDelete && (
+          <button
+            type="button"
+            onClick={() => onDelete(u)}
+            aria-label={`Excluir unidade ${u.nome}`}
+            className="rounded-lg p-1.5 text-text-faint transition-colors hover:bg-status-bad-bg hover:text-status-bad focus-visible:outline focus-visible:outline-2 focus-visible:outline-status-bad"
+          >
+            <Trash2 size={15} />
+          </button>
         )}
       </div>
     </div>
@@ -178,8 +180,7 @@ function UnidadeRow({
 export default function UnidadesList() {
   const navigate = useNavigate()
   const { get, del } = useApi()
-  const { hasPermission } = useAuth()
-  const canWrite = hasPermission(['admin', 'gestor_sms'])
+  const { canInsert, canUpdate, canDelete } = usePermission('unidades')
 
   // ── State ──────────────────────────────────────────────────────────────────
   const [lista, setLista]                   = useState<UnidadeRecord[]>([])
@@ -370,12 +371,13 @@ export default function UnidadesList() {
   const rowProps: RowProps = useMemo(
     () => ({
       rows: filtrados,
-      canWrite,
+      canUpdate,
+      canDelete,
       onEdit:         (u) => setFormModal({ open: true, unidade: u }),
       onDelete:       (u) => setDeleteModal({ open: true, unidade: u }),
       onIndicadores:  (u) => navigate(`/indicadores/${u.id}`),
     }),
-    [filtrados, canWrite, navigate],
+    [filtrados, canUpdate, canDelete, navigate],
   )
 
   const ROW_HEIGHT = 56
@@ -438,7 +440,7 @@ export default function UnidadesList() {
           >
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
           </button>
-          {canWrite && (
+          {canInsert && (
             <button
               type="button"
               onClick={() => setFormModal({ open: true })}
@@ -587,7 +589,7 @@ export default function UnidadesList() {
                 <p className="text-sm text-text-muted">
                   {hasFilters
                     ? 'Tente outros termos ou limpe os filtros.'
-                    : canWrite
+                    : canInsert
                       ? 'Clique em "Nova Unidade" para começar.'
                       : 'Entre em contato com o administrador.'}
                 </p>

@@ -1,21 +1,28 @@
 const express = require('express');
 const MetaController = require('../controllers/MetaController');
 const auth = require('../middlewares/auth');
-const { authorize, PERFIS } = require('../middlewares/rbac');
+const { checkPermission } = require('../middlewares/rbac');
 const { auditar } = require('../middlewares/auditoria');
 
 const router = express.Router();
 const controller = new MetaController();
 
-// ── Leitura — todos os perfis autenticados ────────────────────────────────────
-router.get('/',    auth(), controller.listar);
-router.get('/:id', auth(), controller.buscarPorId);
+// ── Leitura — can_view em módulo metas ────────────────────────────────────────
+router.get('/',    auth(), checkPermission('metas', 'view'), controller.listar);
+router.get('/:id', auth(), checkPermission('metas', 'view'), controller.buscarPorId);
 
 // ── Criação ───────────────────────────────────────────────────────────────────
 router.post(
+    '/pacote',
+    auth(),
+    checkPermission('metas', 'insert'),
+    auditar('tb_metas', 'INSERT'),
+    controller.criarPacote,
+);
+router.post(
     '/',
     auth(),
-    authorize(PERFIS.ADMIN, PERFIS.GESTOR_SMS),
+    checkPermission('metas', 'insert'),
     auditar('tb_metas', 'INSERT'),
     controller.criar,
 );
@@ -24,7 +31,7 @@ router.post(
 router.put(
     '/:id',
     auth(),
-    authorize(PERFIS.ADMIN, PERFIS.GESTOR_SMS),
+    checkPermission('metas', 'update'),
     auditar('tb_metas', 'UPDATE'),
     controller.atualizar,
 );
@@ -33,7 +40,7 @@ router.put(
 router.delete(
     '/:id',
     auth(),
-    authorize(PERFIS.ADMIN, PERFIS.GESTOR_SMS),
+    checkPermission('metas', 'delete'),
     auditar('tb_metas', 'DELETE'),
     controller.remover,
 );

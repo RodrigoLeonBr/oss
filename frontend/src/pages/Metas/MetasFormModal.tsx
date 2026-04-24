@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from 'react'
-import { X, Target, Loader2, AlertCircle } from 'lucide-react'
-import type { MetaRecord, MetaFormData, MetaFormErrors } from './types'
-import { unwrap } from './types'
+import { useState, useEffect } from 'react'
+import { X, Target, Loader2, AlertCircle, Plus, Trash2, Layers, CircleDot } from 'lucide-react'
+import type { MetaRecord, MetaFormData, MetaFormErrors, MetaPacoteComponenteForm } from './types'
+import { emptyComponente, unwrap, formatarData } from './types'
 import { useApi, ApiError } from '../../hooks/useApi'
 
 interface Props {
@@ -9,6 +9,12 @@ interface Props {
   indicadorId: string
   /** 'producao' → metaMensal/metaAnual fields; 'qualidade' → metaValorQualit field */
   indicadorTipo: 'producao' | 'qualidade'
+  /** Vigência e prazo definidos no cadastro do indicador */
+  indicadorVigencia: {
+    vigenciaInicio: string | null
+    vigenciaFim: string | null
+    prazoImplantacao: string | null
+  } | null
   onSalvo: (meta: MetaRecord) => void
   onFechar: () => void
 }
@@ -67,8 +73,7 @@ function devMockSave(
 }
 
 const EMPTY: MetaFormData = {
-  vigenciaInicio:  '',
-  vigenciaFim:     '',
+  nome:            '',
   metaMensal:      '',
   metaAnual:       '',
   metaValorQualit: '',
@@ -81,15 +86,31 @@ const EMPTY: MetaFormData = {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-export default function MetasFormModal({ meta, indicadorId, indicadorTipo, onSalvo, onFechar }: Props) {
+const SUM_TOL = 1e-4
+
+export default function MetasFormModal({
+  meta,
+  indicadorId,
+  indicadorTipo,
+  indicadorVigencia,
+  onSalvo,
+  onFechar,
+}: Props) {
   const { post, put } = useApi()
   const isEdit = Boolean(meta)
+  const isProducao = indicadorTipo === 'producao'
+  const isQualidade = indicadorTipo === 'qualidade'
+  const [modo, setModo] = useState<'simples' | 'pacote'>(() => 'simples')
+  const pacoteAtivo = !isEdit && isProducao && modo === 'pacote'
+  const [componentes, setComponentes] = useState<MetaPacoteComponenteForm[]>([
+    emptyComponente(),
+    emptyComponente(),
+  ])
 
   const [form, setForm] = useState<MetaFormData>(() =>
     meta
       ? {
-          vigenciaInicio:  meta.vigenciaInicio,
-          vigenciaFim:     meta.vigenciaFim ?? '',
+          nome:            meta.nome?.trim() || meta.observacoes?.trim() || '',
           metaMensal:      meta.metaMensal != null ? String(meta.metaMensal) : '',
           metaAnual:       meta.metaAnual != null ? String(meta.metaAnual) : '',
           metaValorQualit: meta.metaValorQualit != null ? String(meta.metaValorQualit) : '',
@@ -106,9 +127,16 @@ export default function MetasFormModal({ meta, indicadorId, indicadorTipo, onSal
   const [apiError, setApiError]             = useState<string | null>(null)
   const [devMockWarning, setDevMockWarning] = useState(false)
 
-  const primeiroRef = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    document.getElementById('meta-nome')?.focus()
+  }, [])
 
-  useEffect(() => { primeiroRef.current?.focus() }, [])
+  useEffect(() => {
+    if (!meta && isProducao) {
+      setModo('simples')
+      setComponentes([emptyComponente(), emptyComponente()])
+    }
+  }, [meta, isProducao, indicadorId])
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onFechar() }
@@ -127,17 +155,70 @@ export default function MetasFormModal({ meta, indicadorId, indicadorTipo, onSal
     setApiError(null)
   }
 
+  function setComponente(
+    i: number,
+    field: keyof MetaPacoteComponenteForm,
+    value: string,
+  ) {
+    setComponentes(prev => {
+      const n = [...prev]
+      n[i] = { ...n[i], [field]: value }
+      return n
+    })
+    setApiError(null)
+  }
+
+  function addComponente() {
+    setComponentes(prev => [...prev, emptyComponente()])
+  }
+
+  function removeComponente(i: number) {
+    setComponentes(prev => (prev.length <= 1 ? prev : prev.filter((_, j) => j !== i)))
+  }
+
   function validar(): boolean {
     const e: MetaFormErrors = {}
 
-    if (!form.vigenciaInicio) {
-      e.vigenciaInicio = 'Data de início da vigência é obrigatória'
+    if (!indicadorVigencia?.vigenciaInicio) {
+      e.indicadorVigencia = 'Defina início da vigência no cadastro do indicador.'
     }
 
-    const isProducao = indicadorTipo === 'producao'
-    const isQualidade = indicadorTipo === 'qualidade'
+    if (!form.nome.trim()) {
+      e.nome = 'Informe o nome da meta'
+    }
 
-    if (isProducao) {
+    if (pacoteAtivo) {
+      for (let i = 0; i < componentes.length; i++) {
+        if (!componentes[i].nome.trim()) {
+          e.metaMensal = `Nome obrigatório em cada componente (linha ${i + 1}).`
+          break
+        }
+      }
+    }
+
+    const chkPct = (s: string, err: 'metaMinima' | 'metaParcial') => {
+      if (!s.trim()) return
+      const x = parseFloat(s.replace(',', '.'))
+      if (isNaN(x) || x < 0 || x > 100) e[err] = 'Use percentual entre 0 e 100'
+    }
+    chkPct(form.metaMinima, 'metaMinima')
+    chkPct(form.metaParcial, 'metaParcial')
+    if (pacoteAtivo) {
+      for (let i = 0; i < componentes.length; i++) {
+        const c = componentes[i]
+        for (const [label, val] of [['Mín', c.metaMinima], ['Parc', c.metaParcial]] as const) {
+          if (!val.trim()) continue
+          const x = parseFloat(val.replace(',', '.'))
+          if (isNaN(x) || x < 0 || x > 100) {
+            e.metaMensal = `Componente ${i + 1}: ${label} — use percentual 0–100.`
+            break
+          }
+        }
+        if (e.metaMensal) break
+      }
+    }
+
+    if (isProducao && !pacoteAtivo) {
       const mensal = form.metaMensal.trim() ? parseFloat(form.metaMensal) : null
       const anual  = form.metaAnual.trim()  ? parseFloat(form.metaAnual)  : null
       if (mensal === null && anual === null) {
@@ -145,6 +226,30 @@ export default function MetasFormModal({ meta, indicadorId, indicadorTipo, onSal
       } else {
         if (mensal !== null && (isNaN(mensal) || mensal < 0)) e.metaMensal = 'Valor deve ser ≥ 0'
         if (anual  !== null && (isNaN(anual)  || anual  < 0)) e.metaAnual  = 'Valor deve ser ≥ 0'
+      }
+    }
+
+    if (pacoteAtivo) {
+      const ag = form.metaMensal.trim() ? parseFloat(form.metaMensal) : null
+      if (ag === null || isNaN(ag) || ag < 0) {
+        e.metaMensal = 'Informe a meta mensal total (soma de referência)'
+      }
+      let sum = 0
+      for (const c of componentes) {
+        const m = c.metaMensal.trim() ? parseFloat(c.metaMensal) : NaN
+        const w = c.peso.trim() ? parseFloat(c.peso) : NaN
+        if (isNaN(m) || m < 0) {
+          e.metaMensal = 'Cada componente precisa de meta mensal válida (≥ 0).'
+          break
+        }
+        if (isNaN(w) || w <= 0) {
+          e.metaMensal = 'Cada componente precisa de peso > 0.'
+          break
+        }
+        sum += m
+      }
+      if (!e.metaMensal && ag !== null && !isNaN(ag) && Math.abs(sum - ag) > SUM_TOL) {
+        e.metaMensal = `Soma dos componentes (${sum.toFixed(4)}) deve igualar a meta total (${ag.toFixed(4)}).`
       }
     }
 
@@ -167,10 +272,8 @@ export default function MetasFormModal({ meta, indicadorId, indicadorTipo, onSal
 
     const toNum = (s: string) => s.trim() ? parseFloat(s) : null
 
-    const payload = {
-      indicadorId,
-      vigenciaInicio:  form.vigenciaInicio,
-      vigenciaFim:     form.vigenciaFim  || null,
+    const common = {
+      nome:            form.nome.trim(),
       metaMensal:      toNum(form.metaMensal),
       metaAnual:       toNum(form.metaAnual),
       metaValorQualit: toNum(form.metaValorQualit),
@@ -181,12 +284,41 @@ export default function MetasFormModal({ meta, indicadorId, indicadorTipo, onSal
       observacoes:     form.observacoes.trim()   || null,
     }
 
+    const payload = { indicadorId, ...common }
+    const pacoteBody = {
+      indicadorId,
+      agregada: {
+        nome:           form.nome.trim(),
+        metaMensal:     toNum(form.metaMensal) as number,
+        metaAnual:      toNum(form.metaAnual),
+        metaTipo:       form.metaTipo,
+        observacoes:    form.observacoes.trim() || null,
+        metaMinima:     toNum(form.metaMinima),
+        metaParcial:    toNum(form.metaParcial),
+        unidadeMedida:  form.unidadeMedida.trim() || null,
+      },
+      componentes: componentes.map(c => ({
+        nome:         c.nome.trim(),
+        metaMensal:   toNum(c.metaMensal) as number,
+        metaAnual:    c.metaAnual.trim() ? toNum(c.metaAnual) : null,
+        peso:         toNum(c.peso) as number,
+        observacoes:  c.observacoes.trim() || null,
+        metaMinima:   c.metaMinima.trim() ? toNum(c.metaMinima) : null,
+        metaParcial:  c.metaParcial.trim() ? toNum(c.metaParcial) : null,
+        metaTipo:     form.metaTipo,
+      })),
+    }
+
     setLoading(true)
     setApiError(null)
     setDevMockWarning(false)
+    const criarPacote = !isEdit && isProducao && modo === 'pacote'
     try {
       if (isEdit && meta) {
         const res = await put<MetaRecord | { data: MetaRecord }>(`/metas/${meta.id}`, payload)
+        onSalvo(unwrap(res))
+      } else if (criarPacote) {
+        const res = await post<MetaRecord | { data: MetaRecord }>('/metas/pacote', pacoteBody)
         onSalvo(unwrap(res))
       } else {
         const res = await post<MetaRecord | { data: MetaRecord }>('/metas', payload)
@@ -199,17 +331,62 @@ export default function MetasFormModal({ meta, indicadorId, indicadorTipo, onSal
 
       if (import.meta.env.DEV && (status === 401 || status === 404 || isNetErr)) {
         setDevMockWarning(true)
+        if (criarPacote) {
+          const ag = toNum(form.metaMensal) as number
+          const st: MetaRecord['status'] = indicadorVigencia?.vigenciaFim ? 'encerrada' : 'vigente'
+          const base: Omit<MetaRecord, 'id' | 'createdAt' | 'updatedAt' | 'children'> = {
+            ...payload,
+            versao: meta?.versao ?? 1,
+            status: st,
+            vigenciaInicio: indicadorVigencia?.vigenciaInicio ?? null,
+            vigenciaFim: indicadorVigencia?.vigenciaFim ?? null,
+            prazoImplantacao: indicadorVigencia?.prazoImplantacao ?? null,
+            papel: 'agregada',
+            parentMetaId: null,
+            peso: null,
+            metaMensal: ag,
+            nome: form.nome.trim(),
+          }
+          const parent = devMockSave(base)
+          const children: MetaRecord[] = componentes.map(c =>
+            devMockSave({
+              ...payload,
+              indicadorId,
+              versao: parent.versao,
+              status: parent.status,
+              vigenciaInicio: indicadorVigencia?.vigenciaInicio ?? null,
+              vigenciaFim: indicadorVigencia?.vigenciaFim ?? null,
+              prazoImplantacao: indicadorVigencia?.prazoImplantacao ?? null,
+              papel: 'componente',
+              parentMetaId: parent.id,
+              metaMensal: toNum(c.metaMensal) as number,
+              metaAnual:  c.metaAnual.trim() ? toNum(c.metaAnual) : (toNum(c.metaMensal) as number) * 12,
+              peso: toNum(c.peso) as number,
+              nome: c.nome.trim(),
+              observacoes: c.observacoes.trim() || null,
+            }),
+          )
+          onSalvo({ ...parent, children })
+          return
+        }
         const mockRecord: Omit<MetaRecord, 'id' | 'createdAt' | 'updatedAt'> = {
           ...payload,
+          nome: form.nome.trim(),
           versao: meta?.versao ?? 1,
-          status: payload.vigenciaFim ? 'encerrada' : 'vigente',
-          prazoImplantacao: null,
+          status: indicadorVigencia?.vigenciaFim ? 'encerrada' : 'vigente',
+          vigenciaInicio: indicadorVigencia?.vigenciaInicio ?? null,
+          vigenciaFim: indicadorVigencia?.vigenciaFim ?? null,
+          prazoImplantacao: indicadorVigencia?.prazoImplantacao ?? null,
         }
         onSalvo(devMockSave(mockRecord, isEdit ? meta?.id : undefined))
         return
       }
 
-      if (status === 409) {
+      if (status === 401) {
+        setApiError(
+          'Sessão inválida ou expirada, ou o token não foi enviado. Faça login novamente e tente de novo.',
+        )
+      } else if (status === 409) {
         setApiError('Já existe uma meta vigente para este indicador. Encerre a meta atual antes de criar uma nova.')
       } else if (status === 400 || status === 422) {
         setApiError(`Dados inválidos: ${rawMsg || 'verifique os campos e tente novamente.'}`)
@@ -227,9 +404,6 @@ export default function MetasFormModal({ meta, indicadorId, indicadorTipo, onSal
     }
   }
 
-  const isProducao  = indicadorTipo === 'producao'
-  const isQualidade = indicadorTipo === 'qualidade'
-
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
@@ -238,7 +412,9 @@ export default function MetasFormModal({ meta, indicadorId, indicadorTipo, onSal
       aria-labelledby="meta-modal-title"
     >
       <div
-        className="w-full max-w-lg overflow-hidden rounded-2xl border border-border-subtle bg-surface shadow-2xl"
+        className={`w-full overflow-hidden rounded-2xl border border-border-subtle bg-surface shadow-2xl ${
+          !isEdit && isProducao && modo === 'pacote' ? 'max-w-2xl' : 'max-w-lg'
+        }`}
         onClick={e => e.stopPropagation()}
       >
         {/* ── Header ── */}
@@ -294,42 +470,96 @@ export default function MetasFormModal({ meta, indicadorId, indicadorTipo, onSal
                 </div>
               )}
 
-              {/* Vigência */}
-              <div className="grid grid-cols-2 gap-4">
-                <Field
-                  id="meta-inicio"
-                  label="Início da Vigência"
-                  required
-                  error={erros.vigenciaInicio}
-                >
-                  <input
-                    ref={primeiroRef}
-                    id="meta-inicio"
-                    type="date"
-                    value={form.vigenciaInicio}
-                    onChange={e => setField('vigenciaInicio', e.target.value)}
-                    aria-describedby={erros.vigenciaInicio ? 'meta-inicio-error' : undefined}
-                    className={inputCls(!!erros.vigenciaInicio)}
-                  />
-                </Field>
+              {!isEdit && isProducao && (
+                <div className="flex gap-1 rounded-xl border border-border-subtle bg-surface-alt/50 p-1">
+                  <button
+                    type="button"
+                    onClick={() => { setModo('simples'); setApiError(null) }}
+                    className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                      modo === 'simples'
+                        ? 'bg-surface text-primary shadow-sm'
+                        : 'text-text-muted hover:text-text-primary'
+                    }`}
+                  >
+                    <CircleDot size={16} />
+                    Meta avulsa
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setModo('pacote'); setApiError(null) }}
+                    className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                      modo === 'pacote'
+                        ? 'bg-surface text-primary shadow-sm'
+                        : 'text-text-muted hover:text-text-primary'
+                    }`}
+                  >
+                    <Layers size={16} />
+                    Decomposição
+                  </button>
+                </div>
+              )}
 
-                <Field
-                  id="meta-fim"
-                  label="Fim da Vigência"
-                  hint="Deixe em branco para vigência aberta"
-                >
-                  <input
-                    id="meta-fim"
-                    type="date"
-                    value={form.vigenciaFim}
-                    onChange={e => setField('vigenciaFim', e.target.value)}
-                    className={inputCls(false)}
-                  />
-                </Field>
+              {modo === 'pacote' && !isEdit && isProducao && (
+                <p className="text-xs text-text-muted">
+                  A <strong>meta mensal total</strong> é a soma de referência; cada linha abaixo é um componente com peso para a média ponderada F.
+                </p>
+              )}
+
+              <Field
+                id="meta-nome"
+                label={pacoteAtivo ? 'Nome do pacote (agregada)' : 'Nome da meta'}
+                required
+                error={erros.nome}
+                hint="Primeiro preencha o nome; em decomposição, cada componente também tem nome obrigatório abaixo."
+              >
+                <input
+                  id="meta-nome"
+                  type="text"
+                  value={form.nome}
+                  onChange={e => setField('nome', e.target.value)}
+                  placeholder="Ex.: Produção SADT — consultas"
+                  maxLength={500}
+                  autoComplete="off"
+                  className={inputCls(!!erros.nome)}
+                />
+              </Field>
+
+              <div
+                className="rounded-xl border border-border-subtle bg-surface-alt/50 px-3 py-3 text-sm"
+                aria-label="Vigência e prazo do indicador"
+              >
+                <p className="mb-2 font-medium text-text-secondary">Vigência e prazo (cadastro do indicador)</p>
+                <dl className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  <div>
+                    <dt className="text-xs text-text-muted">Início da vigência</dt>
+                    <dd className="text-text-primary">{formatarData(indicadorVigencia?.vigenciaInicio)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-text-muted">Fim da vigência</dt>
+                    <dd className="text-text-primary">
+                      {indicadorVigencia?.vigenciaFim
+                        ? formatarData(indicadorVigencia.vigenciaFim)
+                        : <span className="text-status-ok">em vigor</span>}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-text-muted">Prazo de implantação</dt>
+                    <dd className="text-text-primary">{formatarData(indicadorVigencia?.prazoImplantacao)}</dd>
+                  </div>
+                </dl>
+                {erros.indicadorVigencia && (
+                  <p role="alert" className="mt-2 flex items-center gap-1 text-xs text-status-bad">
+                    <AlertCircle size={12} />
+                    {erros.indicadorVigencia}
+                  </p>
+                )}
+                <p className="mt-2 text-xs text-text-muted">
+                  Quem define estas datas é o <strong>indicador</strong>. Ajuste em Indicadores → editar.
+                </p>
               </div>
 
-              {/* Campos de produção */}
-              {isProducao && (
+              {/* Campos de produção (avulsa ou edição) */}
+              {isProducao && (isEdit || modo === 'simples') && (
                 <div className="grid grid-cols-2 gap-4">
                   <Field
                     id="meta-mensal"
@@ -372,6 +602,182 @@ export default function MetasFormModal({ meta, indicadorId, indicadorTipo, onSal
                 </div>
               )}
 
+              {/* Total do pacote + linhas componentes */}
+              {isProducao && !isEdit && modo === 'pacote' && (
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    <Field
+                      id="meta-mensal-total"
+                      label="Meta mensal total (soma de referência)"
+                      required
+                      error={erros.metaMensal}
+                      hint="Deve ser igual à soma das metas dos componentes abaixo"
+                    >
+                      <input
+                        id="meta-mensal-total"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={form.metaMensal}
+                        onChange={e => setField('metaMensal', e.target.value)}
+                        className={inputCls(!!erros.metaMensal)}
+                      />
+                    </Field>
+                    <Field
+                      id="meta-anual-pacote"
+                      label="Meta anual (opcional)"
+                      error={erros.metaAnual}
+                      hint="Se preenchida, a soma anual dos componentes deve conferir"
+                    >
+                      <input
+                        id="meta-anual-pacote"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={form.metaAnual}
+                        onChange={e => setField('metaAnual', e.target.value)}
+                        className={inputCls(!!erros.metaAnual)}
+                      />
+                    </Field>
+                  </div>
+
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-text-secondary">Componentes (folhas)</p>
+                    <div className="max-h-56 space-y-2 overflow-y-auto rounded-xl border border-border-subtle p-2">
+                      {componentes.map((c, i) => (
+                        <div
+                          key={i}
+                          className="space-y-2 border-b border-border-subtle/60 pb-2 last:border-0"
+                        >
+                          <div>
+                            <label className="mb-1 block text-xs text-text-muted" htmlFor={`c-nome-${i}`}>
+                              Nome do componente <span className="text-status-bad">*</span>
+                            </label>
+                            <input
+                              id={`c-nome-${i}`}
+                              type="text"
+                              value={c.nome}
+                              onChange={e => setComponente(i, 'nome', e.target.value)}
+                              placeholder="Ex.: SADT eletivo"
+                              maxLength={500}
+                              className={inputCls(false)}
+                            />
+                          </div>
+                          <div className="grid grid-cols-[1fr_1fr_80px_36px] items-end gap-2">
+                          <div>
+                            <label className="mb-1 block text-xs text-text-muted" htmlFor={`c-mes-${i}`}>
+                              Meta mensal
+                            </label>
+                            <input
+                              id={`c-mes-${i}`}
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={c.metaMensal}
+                              onChange={e => setComponente(i, 'metaMensal', e.target.value)}
+                              className={inputCls(false)}
+                            />
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-xs text-text-muted" htmlFor={`c-anu-${i}`}>
+                              Anual (opcional)
+                            </label>
+                            <input
+                              id={`c-anu-${i}`}
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={c.metaAnual}
+                              onChange={e => setComponente(i, 'metaAnual', e.target.value)}
+                              className={inputCls(false)}
+                            />
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-xs text-text-muted" htmlFor={`c-p-${i}`}>
+                              Peso
+                            </label>
+                            <input
+                              id={`c-p-${i}`}
+                              type="number"
+                              min="0"
+                              step="0.1"
+                              value={c.peso}
+                              onChange={e => setComponente(i, 'peso', e.target.value)}
+                              className={inputCls(false)}
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeComponente(i)}
+                            disabled={componentes.length <= 1}
+                            className="mb-0.5 flex h-9 w-9 items-center justify-center rounded-lg text-text-faint hover:bg-status-bad-bg hover:text-status-bad disabled:opacity-30"
+                            aria-label="Remover linha"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="mb-1 block text-xs text-text-muted" htmlFor={`c-minp-${i}`}>
+                                Mín. % (ref. mensal)
+                              </label>
+                              <input
+                                id={`c-minp-${i}`}
+                                type="number"
+                                min="0"
+                                max="100"
+                                step="0.01"
+                                value={c.metaMinima}
+                                onChange={e => setComponente(i, 'metaMinima', e.target.value)}
+                                placeholder="opcional"
+                                className={inputCls(false)}
+                              />
+                            </div>
+                            <div>
+                              <label className="mb-1 block text-xs text-text-muted" htmlFor={`c-parp-${i}`}>
+                                Parc. % (ref. mensal)
+                              </label>
+                              <input
+                                id={`c-parp-${i}`}
+                                type="number"
+                                min="0"
+                                max="100"
+                                step="0.01"
+                                value={c.metaParcial}
+                                onChange={e => setComponente(i, 'metaParcial', e.target.value)}
+                                placeholder="opcional"
+                                className={inputCls(false)}
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-xs text-text-muted" htmlFor={`c-obs-${i}`}>
+                              Observações (opcional)
+                            </label>
+                            <input
+                              id={`c-obs-${i}`}
+                              type="text"
+                              value={c.observacoes}
+                              onChange={e => setComponente(i, 'observacoes', e.target.value)}
+                              placeholder="Contexto adicional"
+                              className={inputCls(false)}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={addComponente}
+                      className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+                    >
+                      <Plus size={16} />
+                      Adicionar componente
+                    </button>
+                  </div>
+                </>
+              )}
+
               {/* Campo de qualidade */}
               {isQualidade && (
                 <Field
@@ -408,49 +814,53 @@ export default function MetasFormModal({ meta, indicadorId, indicadorTipo, onSal
                 </select>
               </Field>
 
-              {/* Meta mínima + parcial */}
+              {/* Mínima + parcial: % do valor de referência (meta mensal ou meta de qualidade) */}
               <div className="grid grid-cols-2 gap-4">
                 <Field
                   id="meta-minima"
+                  error={erros.metaMinima}
                   label={
                     form.metaTipo === 'menor_igual'
-                      ? 'Limite atingido (x) — atingido abaixo deste valor'
-                      : 'Limite mínimo (x) — não atingido abaixo deste valor'
+                      ? 'Limite atingido (% da meta) — teto "atingido" em menor-é-melhor'
+                      : 'Limite mínimo (% da meta) — abaixo disso: não atingido'
                   }
+                  hint="Percentual 0–100 sobre o valor de referência informado acima (mensal/qualit.)."
                 >
                   <input
                     id="meta-minima"
                     type="number"
                     min="0"
+                    max="100"
                     step="0.01"
                     value={form.metaMinima}
                     onChange={e => setField('metaMinima', e.target.value)}
-                    placeholder="0,00"
-                    className={inputCls(false)}
+                    placeholder="0–100"
+                    className={inputCls(!!erros.metaMinima)}
                   />
                 </Field>
 
-                {isProducao && (
-                  <Field
+                <Field
+                  id="meta-parcial"
+                  error={erros.metaParcial}
+                  label={
+                    form.metaTipo === 'menor_igual'
+                      ? 'Limite parcial (% da meta) — entre parcial e "atingido"'
+                      : 'Limite parcial (% da meta) — entre mínimo e "atingido"'
+                  }
+                  hint="Percentual 0–100 sobre a mesma referência. Deixe vazio se não usar faixa parcial."
+                >
+                  <input
                     id="meta-parcial"
-                    label={
-                      form.metaTipo === 'menor_igual'
-                        ? 'Limite parcial (y) — parcialmente atingido entre y e x'
-                        : 'Limite parcial (y) — parcialmente atingido entre x e y'
-                    }
-                  >
-                    <input
-                      id="meta-parcial"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={form.metaParcial}
-                      onChange={e => setField('metaParcial', e.target.value)}
-                      placeholder="0,00"
-                      className={inputCls(false)}
-                    />
-                  </Field>
-                )}
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    value={form.metaParcial}
+                    onChange={e => setField('metaParcial', e.target.value)}
+                    placeholder="0–100"
+                    className={inputCls(!!erros.metaParcial)}
+                  />
+                </Field>
               </div>
 
               {/* Unidade de medida */}
@@ -507,7 +917,11 @@ export default function MetasFormModal({ meta, indicadorId, indicadorTipo, onSal
               className="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-dark focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-60"
             >
               {loading && <Loader2 size={16} className="animate-spin" />}
-              {isEdit ? 'Salvar alterações' : 'Criar meta'}
+              {isEdit
+                ? 'Salvar alterações'
+                : isProducao && modo === 'pacote'
+                  ? 'Criar pacote'
+                  : 'Criar meta'}
             </button>
           </div>
         </form>

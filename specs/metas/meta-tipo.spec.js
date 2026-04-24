@@ -7,7 +7,7 @@ describe('MetaValidator — metaTipo', () => {
   it('default maior_igual quando metaTipo ausente em criarMeta', () => {
     const { error, value } = criarMeta.validate({
       indicadorId: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
-      vigenciaInicio: '2026-01-01',
+      nome: 'Meta teste',
       metaMensal: 1000,
     });
     expect(error).to.be.undefined;
@@ -17,7 +17,7 @@ describe('MetaValidator — metaTipo', () => {
   it('aceita menor_igual em criarMeta', () => {
     const { error, value } = criarMeta.validate({
       indicadorId: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
-      vigenciaInicio: '2026-01-01',
+      nome: 'Meta teste',
       metaMensal: 1000,
       metaTipo: 'menor_igual',
     });
@@ -28,7 +28,7 @@ describe('MetaValidator — metaTipo', () => {
   it('rejeita valor inválido em criarMeta', () => {
     const { error } = criarMeta.validate({
       indicadorId: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
-      vigenciaInicio: '2026-01-01',
+      nome: 'Meta teste',
       metaMensal: 1000,
       metaTipo: 'invalido',
     });

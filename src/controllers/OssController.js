@@ -1,11 +1,13 @@
 const httpStatus = require('http-status');
 const OssService = require('../service/OssService');
+const { getOssIdSeEscopoProprio } = require('../helper/ossScopeHelper');
 const logger = require('../config/logger');
 
 class OssController {
     listar = async (req, res, next) => {
         try {
-            const lista = await OssService.listar();
+            const ossIdFiltro = getOssIdSeEscopoProprio(req);
+            const lista = await OssService.listar(ossIdFiltro);
             return res.status(httpStatus.OK).json({ status: true, data: lista });
         } catch (e) {
             logger.error(e);
@@ -15,7 +17,8 @@ class OssController {
 
     buscarPorId = async (req, res, next) => {
         try {
-            const oss = await OssService.buscarPorId(req.params.id);
+            const ossIdFiltro = getOssIdSeEscopoProprio(req);
+            const oss = await OssService.buscarPorId(req.params.id, ossIdFiltro);
             return res.status(httpStatus.OK).json({ status: true, data: oss });
         } catch (e) {
             logger.error(e);
@@ -25,7 +28,8 @@ class OssController {
 
     criar = async (req, res, next) => {
         try {
-            const oss = await OssService.criar(req.body);
+            const ossIdFiltro = getOssIdSeEscopoProprio(req);
+            const oss = await OssService.criar(req.body, ossIdFiltro);
             return res.status(httpStatus.CREATED).json({
                 status: true,
                 message: 'Organização criada com sucesso',
@@ -39,7 +43,8 @@ class OssController {
 
     atualizar = async (req, res, next) => {
         try {
-            const oss = await OssService.atualizar(req.params.id, req.body);
+            const ossIdFiltro = getOssIdSeEscopoProprio(req);
+            const oss = await OssService.atualizar(req.params.id, req.body, ossIdFiltro);
             return res.status(httpStatus.OK).json({
                 status: true,
                 message: 'Organização atualizada com sucesso',
@@ -53,7 +58,8 @@ class OssController {
 
     remover = async (req, res, next) => {
         try {
-            await OssService.remover(req.params.id);
+            const ossIdFiltro = getOssIdSeEscopoProprio(req);
+            await OssService.remover(req.params.id, ossIdFiltro);
             return res.status(httpStatus.NO_CONTENT).send();
         } catch (e) {
             logger.error(e);

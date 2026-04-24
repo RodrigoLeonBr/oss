@@ -3,10 +3,10 @@
 ## Sistema de Acompanhamento de Contratos de Gestão em Saúde Pública
 ### Município de Americana/SP — **SaúdeControl OSS**
 
-**Versão:** 2.0  
-**Data de Atualização:** 12 de abril de 2026  
+**Versão:** 2.1  
+**Data de Atualização:** 23 de abril de 2026  
 **Responsável:** Rodrigo Alexander Diaz Leon, Diretor de Planejamento da SMS Americana  
-**Status:** Documento Fundacional — Revisado com base nos Planos de Trabalho e Planilhas Operacionais  
+**Status:** Documento fundacional alinhado aos planos em `docs/superpowers/plans/` e specs em `docs/superpowers/specs/` (auth/permissions, metas decomposição)  
 **Contratos de Referência:** SCMC nº 009/2023 (6º TA) · INDSH Chamamento PMA nº 002/2025
 
 ---
@@ -216,6 +216,15 @@ Sistema de pesos proporcional (total = 100%):
 ### 2.3 Módulo de Metas Quantitativas
 
 **Objetivo:** Gerenciar metas anuais e mensais, com flexibilidade para variação anual.
+
+**Extensão aprovada (abril/2026) — decomposição e cumprimento ponderado**
+
+Referência: [Metas — decomposição, pesos e cumprimento global](superpowers/specs/2026-04-23-metas-decomposicao-pesos-design.md).
+
+- Indicador **quantitativo** pode ter **pacote** de metas: linha **agregada** (referência de volume) + N linhas **componente** com **peso** &gt; 0; soma dos volumes das componentes = referência do agregado.  
+- **Cumprimento** agregado no indicador: **média ponderada** de fatores por linha (não substituir por simples `soma(realizados)/soma(metas)`); abaixo de `meta_mínima`, aplica-se **teto (cap)** configurável no produto para o fator de linha.  
+- **Entrada de realizado:** sempre por **meta folha** (avulsa ou componente). Meta agregada **não** recebe lançamento direto de realizado.  
+- **Unicidade:** um registro de acompanhamento por par (**meta folha**, **mês**). Indicadores **qualitativos** permanecem com meta em **linha única** (sem decomposição).
 
 #### Metas por Unidade (referência 2026):
 
@@ -441,6 +450,14 @@ REPASSE FINAL: R$ 10.855.769,19 − R$ 656.066,01 = R$ 10.199.703,18
 | Central_Regulacao | Visualização de dados de produção/acesso | Todos (read-only produção) |
 | Visualizador | Leitura apenas | Restrito por configuração |
 
+**Autorização no produto (implementação):** matriz persistida em `tb_permissoes_perfil` (módulos: dashboard, metas, usuários, permissões, entrada mensal, etc.) com ações `can_view/insert/update/delete` e **escopo** `global` ou `proprio` (filtra dados pela OSS vinculada ao usuário). Carregada após o login; UI e middleware de API utilizam a mesma fonte de verdade. Perfis *contratada_* exigem `oss_id` no cadastro.
+
+### 2.8 Módulo Admin — usuários e matriz de permissões
+
+- Listagem/criação/edição de usuários (com regras: ex. *gestor_sms* não cria privilegiados; contratadas com OSS obrigatório).  
+- Tela de **matriz** de permissões por perfil (somente *admin* ou conforme política).  
+- Endpoints e frontend alinhados ao plano [auth-permissions](superpowers/plans/2026-04-23-auth-permissions.md).
+
 ---
 
 ## 3. REQUISITOS FUNCIONAIS ESPECÍFICOS
@@ -523,8 +540,9 @@ Baseado nas planilhas de custo (UPA Dona Rosa: 14 grupos; UPA Zanaga: 12 grupos)
 ### 4.4 Segurança
 
 - ✅ HTTPS/TLS para todas as comunicações
-- ✅ Autenticação multi-fator (2FA recomendado)
-- ✅ RBAC com segregação por OSS
+- ✅ Autenticação multi-fator (2FA recomendado; campos de token 2FA previstos no modelo de usuário)
+- ✅ **RBAC** com segregação por OSS e **permissões por módulo** persistidas (`tb_permissoes_perfil` + `escopo`)
+- ✅ Sessão JWT; validade de token tratada no cliente para evitar acesso com credencial expirada
 - ✅ Auditoria de todos os acessos e operações
 - ✅ Retenção de 5 anos (TCESP)
 - ✅ Conformidade LGPD
@@ -663,6 +681,16 @@ Baseado nas planilhas de custo (UPA Dona Rosa: 14 grupos; UPA Zanaga: 12 grupos)
 
 ---
 
+## APÊNDICE A1: DOCUMENTOS TÉCNICOS RECENTES (superpowers)
+
+| Documento | Conteúdo |
+|---|---|
+| [2026-04-23-metas-decomposicao-pesos-design.md](superpowers/specs/2026-04-23-metas-decomposicao-pesos-design.md) | Decomposição de metas, pesos, F ponderado, cap sub-meta |
+| [2026-04-23-metas-decomposicao-pesos.md](superpowers/plans/2026-04-23-metas-decomposicao-pesos.md) | Plano de implementação (migrations, serviços, testes) |
+| [2026-04-23-auth-permissions.md](superpowers/plans/2026-04-23-auth-permissions.md) | Permissões por perfil, rotas, seeds |
+
+---
+
 ## APÊNDICE A: GLOSSÁRIO
 
 | **Termo** | **Definição** |
@@ -677,6 +705,8 @@ Baseado nas planilhas de custo (UPA Dona Rosa: 14 grupos; UPA Zanaga: 12 grupos)
 | **Nota Explicativa** | Justificativa formal para desvio de meta, com data, responsável e aprovação |
 | **Repasse** | Transferência de recursos financeiros da SMS para OSS (90% fixo + 10% variável) |
 | **Soft-Delete** | Exclusão lógica — dados marcados como deletados, mas retidos para auditoria |
+| **Meta agregada / componente** | Papel da linha em `tb_metas`: agregada = referência do pacote; componente = sub-meta com peso para o índice F |
+| **Escopo (permissão)** | `proprio` = dados filtrados pela OSS do usuário; `global` = sem filtro de OSS nesse módulo |
 | **SCMC** | Santa Casa de Misericórdia de Chavantes / Grupo Chavantes |
 | **INDSH** | Instituto Nacional de Desenvolvimento Social e Humano |
 
@@ -707,5 +737,5 @@ Baseado nas planilhas de custo (UPA Dona Rosa: 14 grupos; UPA Zanaga: 12 grupos)
 
 ---
 
-**Documento Atualizado:** 12 de abril de 2026 | **Versão:** 2.0  
-**Status:** Revisado com base nos Planos de Trabalho dos contratos SCMC 009/2023 (6º TA), SCMC 066/2024 (2º TA UPA Dona Rosa) e INDSH Chamamento PMA 002/2025 (PA Zanaga)
+**Documento Atualizado:** 23 de abril de 2026 | **Versão:** 2.1  
+**Status:** Inclui requisitos de decomposição de metas e matriz de permissões alinhados às entregas de abril/2026; contratos de referência inalterados (SCMC 009/2023, 066/2024, INDSH 002/2025)

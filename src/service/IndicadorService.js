@@ -1,6 +1,7 @@
 const httpStatus = require('http-status');
 const { Op } = require('sequelize');
 const ApiError = require('../helper/ApiError');
+const { assertIndicadorNoEscopoOSS, assertUnidadeNoEscopoOSS } = require('../helper/ossScopeHelper');
 const db = require('../models');
 
 // ── Mapeamento tipo BD ↔ API ──────────────────────────────────────────────────
@@ -19,6 +20,9 @@ function toRecord(i) {
         tipo:           TIPO_TO_API[d.tipo] ?? d.tipo,
         metaPadrao:     d.peso_perc != null ? parseFloat(d.peso_perc) : null,
         unidadeMedida:  d.unidade_medida ?? null,
+        vigenciaInicio: d.vigencia_inicio ?? null,
+        vigenciaFim:    d.vigencia_fim ?? null,
+        prazoImplantacao: d.prazo_implantacao ?? null,
         status:         d.ativo ? 'ativo' : 'inativo',
         createdAt:      d.criado_em,
         updatedAt:      d.atualizado_em,
@@ -40,6 +44,9 @@ function fromPayload(p) {
     if (p.metaPadrao   !== undefined) m.peso_perc     = p.metaPadrao ?? 0;
     if (p.unidadeMedida !== undefined) m.unidade_medida = p.unidadeMedida || null;
     if (p.status       !== undefined) m.ativo         = p.status === 'ativo' ? 1 : 0;
+    if (p.vigenciaInicio !== undefined) m.vigencia_inicio = p.vigenciaInicio || null;
+    if (p.vigenciaFim !== undefined) m.vigencia_fim = p.vigenciaFim || null;
+    if (p.prazoImplantacao !== undefined) m.prazo_implantacao = p.prazoImplantacao || null;
     return m;
 }
 
@@ -50,13 +57,25 @@ function gerarCodigo() {
 }
 
 // ── Include padrão ────────────────────────────────────────────────────────────
-const INCLUDE_UNIDADE = [
-    { model: db.unidade, as: 'unidade', attributes: ['unidade_id', 'nome', 'sigla'] },
-];
+function buildIncludeUnidade(ossIdFiltro) {
+    return [{
+        model: db.unidade,
+        as: 'unidade',
+        attributes: ['unidade_id', 'nome', 'sigla'],
+        required: Boolean(ossIdFiltro),
+        include: ossIdFiltro ? [{
+            model: db.contrato,
+            as: 'contrato',
+            required: true,
+            attributes: [],
+            where: { oss_id: ossIdFiltro },
+        }] : [],
+    }];
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-const listar = async (filtros = {}) => {
+const listar = async (filtros = {}, ossIdFiltro = null) => {
     const where = {};
 
     // aceita unidadeId (camelCase, frontend) ou unidade_id (snake, legado)
@@ -81,27 +100,30 @@ const listar = async (filtros = {}) => {
 
     const lista = await db.indicador.findAll({
         where,
-        include: INCLUDE_UNIDADE,
+        include: buildIncludeUnidade(ossIdFiltro),
         order: [['nome', 'ASC']],
     });
     return lista.map(toRecord);
 };
 
-const buscarPorId = async (id) => {
+const buscarPorId = async (id, ossIdFiltro = null) => {
+    await assertIndicadorNoEscopoOSS(id, ossIdFiltro);
     const indicador = await db.indicador.findOne({
         where:   { indicador_id: id },
-        include: INCLUDE_UNIDADE,
+        include: buildIncludeUnidade(null),
     });
     if (!indicador) throw new ApiError(httpStatus.NOT_FOUND, 'Indicador não encontrado');
     return toRecord(indicador);
 };
 
-const criar = async (payload) => {
+const criar = async (payload, ossIdFiltro = null) => {
     const dados = fromPayload(payload);
 
     if (!dados.unidade_id) {
         throw new ApiError(httpStatus.BAD_REQUEST, 'unidadeId é obrigatório');
     }
+
+    await assertUnidadeNoEscopoOSS(dados.unidade_id, ossIdFiltro);
 
     const unidade = await db.unidade.findOne({ where: { unidade_id: dados.unidade_id } });
     if (!unidade) throw new ApiError(httpStatus.NOT_FOUND, 'Unidade não encontrada');
@@ -127,11 +149,12 @@ const criar = async (payload) => {
     const indicador = await db.indicador.create(dados);
     return toRecord(await db.indicador.findOne({
         where:   { indicador_id: indicador.indicador_id },
-        include: INCLUDE_UNIDADE,
+        include: buildIncludeUnidade(null),
     }));
 };
 
-const atualizar = async (id, payload) => {
+const atualizar = async (id, payload, ossIdFiltro = null) => {
+    await assertIndicadorNoEscopoOSS(id, ossIdFiltro);
     const indicador = await db.indicador.findOne({ where: { indicador_id: id } });
     if (!indicador) throw new ApiError(httpStatus.NOT_FOUND, 'Indicador não encontrado');
 
@@ -155,18 +178,20 @@ const atualizar = async (id, payload) => {
     await indicador.update(dados);
     return toRecord(await db.indicador.findOne({
         where:   { indicador_id: id },
-        include: INCLUDE_UNIDADE,
+        include: buildIncludeUnidade(null),
     }));
 };
 
-const remover = async (id) => {
+const remover = async (id, ossIdFiltro = null) => {
+    await assertIndicadorNoEscopoOSS(id, ossIdFiltro);
     const indicador = await db.indicador.findOne({ where: { indicador_id: id } });
     if (!indicador) throw new ApiError(httpStatus.NOT_FOUND, 'Indicador não encontrado');
     await indicador.destroy(); // soft delete (paranoid: true) — histórico preservado
 };
 
 // Backward compat — usado pelo ciclo de acompanhamento mensal
-const desativar = async (id) => {
+const desativar = async (id, ossIdFiltro = null) => {
+    await assertIndicadorNoEscopoOSS(id, ossIdFiltro);
     const indicador = await db.indicador.findOne({ where: { indicador_id: id } });
     if (!indicador) throw new ApiError(httpStatus.NOT_FOUND, 'Indicador não encontrado');
     await indicador.update({ ativo: 0 });

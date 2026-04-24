@@ -19,5 +19,6 @@ router.put(
     userValidator.changePasswordValidator,
     authController.changePassword,
 );
+router.get('/me/permissions', auth(), authController.mePermissions);
 
 module.exports = router;

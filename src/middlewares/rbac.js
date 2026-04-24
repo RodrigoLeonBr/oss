@@ -50,4 +50,36 @@ const verificarAcessoUnidade = (req, res, next) => {
     return next();
 };
 
-module.exports = { authorize, verificarAcessoUnidade, PERFIS, PERFIS_CONTRATADA };
+/**
+ * Middleware: verifica permissão de ação no banco (coluna can_* em tb_permissoes_perfil).
+ * @param {string} modulo - e.g. 'contratos'
+ * @param {'view'|'insert'|'update'|'delete'} action
+ */
+const checkPermission = (modulo, action) => {
+    return async (req, res, next) => {
+        if (!req.user) {
+            return next(new ApiError(httpStatus.UNAUTHORIZED, 'Autenticação necessária'));
+        }
+        try {
+            const models = require('../models');
+            const perfil = req.user.perfil || req.user.dataValues?.perfil;
+            const perm = await models.permissaoPerfil.findOne({ where: { perfil, modulo } });
+            const col = `can_${action}`;
+            const val = perm ? perm[col] : 0;
+            if (!perm || !Number(val)) {
+                return next(
+                    new ApiError(
+                        httpStatus.FORBIDDEN,
+                        `Perfil '${perfil}' sem permissão de ${action} em ${modulo}.`,
+                    ),
+                );
+            }
+            req.permissaoAtual = perm;
+            return next();
+        } catch (e) {
+            return next(e);
+        }
+    };
+};
+
+module.exports = { authorize, verificarAcessoUnidade, checkPermission, PERFIS, PERFIS_CONTRATADA };

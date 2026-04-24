@@ -7,6 +7,10 @@ export interface IndicadorRecord {
   tipo: 'producao' | 'qualidade'
   metaPadrao: number | null
   unidadeMedida: string | null
+  /** Vigência e prazo vêm do indicador (não da meta) */
+  vigenciaInicio: string | null
+  vigenciaFim: string | null
+  prazoImplantacao: string | null
   status: 'ativo' | 'inativo'
   createdAt?: string
   updatedAt?: string
@@ -20,6 +24,9 @@ export interface IndicadorFormData {
   tipo: 'producao' | 'qualidade'
   metaPadrao: string
   unidadeMedida: string
+  vigenciaInicio: string
+  vigenciaFim: string
+  prazoImplantacao: string
   status: 'ativo' | 'inativo'
 }
 
@@ -30,6 +37,7 @@ export interface IndicadorFormErrors {
   tipo?: string
   metaPadrao?: string
   unidadeMedida?: string
+  vigenciaInicio?: string
 }
 
 // ── Labels / estilos de tipo ──────────────────────────────────────────────────
@@ -83,6 +91,9 @@ export const mockIndicadores: IndicadorRecord[] = [
     tipo: 'producao',
     metaPadrao: 85.00,
     unidadeMedida: '%',
+    vigenciaInicio: '2026-01-01',
+    vigenciaFim: null,
+    prazoImplantacao: null,
     status: 'ativo',
     createdAt: '2024-01-15T00:00:00.000Z',
     unidade: { id: 'u1111111-1111-1111-1111-111111111111', nome: 'UPA 24h Centro', sigla: 'UPA-CTR' },
@@ -95,6 +106,9 @@ export const mockIndicadores: IndicadorRecord[] = [
     tipo: 'qualidade',
     metaPadrao: 30.00,
     unidadeMedida: 'minutos',
+    vigenciaInicio: '2026-01-01',
+    vigenciaFim: null,
+    prazoImplantacao: null,
     status: 'ativo',
     createdAt: '2024-01-15T00:00:00.000Z',
     unidade: { id: 'u1111111-1111-1111-1111-111111111111', nome: 'UPA 24h Centro', sigla: 'UPA-CTR' },
@@ -107,6 +121,9 @@ export const mockIndicadores: IndicadorRecord[] = [
     tipo: 'producao',
     metaPadrao: 1500.00,
     unidadeMedida: 'atendimentos',
+    vigenciaInicio: '2026-01-01',
+    vigenciaFim: null,
+    prazoImplantacao: null,
     status: 'ativo',
     createdAt: '2024-02-01T00:00:00.000Z',
     unidade: { id: 'u1111111-1111-1111-1111-111111111111', nome: 'UPA 24h Centro', sigla: 'UPA-CTR' },
@@ -119,6 +136,9 @@ export const mockIndicadores: IndicadorRecord[] = [
     tipo: 'qualidade',
     metaPadrao: 90.00,
     unidadeMedida: '%',
+    vigenciaInicio: '2026-01-01',
+    vigenciaFim: null,
+    prazoImplantacao: null,
     status: 'ativo',
     createdAt: '2024-02-01T00:00:00.000Z',
     unidade: { id: 'u2222222-2222-2222-2222-222222222222', nome: 'Ambulatório de Especialidades Norte', sigla: 'AMB-N' },
@@ -131,6 +151,9 @@ export const mockIndicadores: IndicadorRecord[] = [
     tipo: 'qualidade',
     metaPadrao: 5.00,
     unidadeMedida: '%',
+    vigenciaInicio: '2026-01-01',
+    vigenciaFim: null,
+    prazoImplantacao: null,
     status: 'inativo',
     createdAt: '2024-03-01T00:00:00.000Z',
     unidade: { id: 'u1111111-1111-1111-1111-111111111111', nome: 'UPA 24h Centro', sigla: 'UPA-CTR' },

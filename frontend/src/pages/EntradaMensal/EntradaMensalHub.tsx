@@ -1,10 +1,11 @@
 // frontend/src/pages/EntradaMensal/EntradaMensalHub.tsx
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Loader2, ChevronRight } from 'lucide-react'
 import type { AcompanhamentoRecord } from './types'
 import { STATUS_BADGE, STATUS_LABELS, unwrap } from './types'
 import { useApi } from '../../hooks/useApi'
+import { useAuth } from '../../contexts/AuthContext'
 
 interface UnidadeCard {
   id: string
@@ -27,13 +28,14 @@ interface Progresso {
 }
 
 function calcularProgresso(acomps: AcompanhamentoRecord[]): Progresso {
+  const folhas = acomps.filter(a => !a.somenteExibicao)
   const porStatus: Partial<Record<StatusCumprimento, number>> = {}
-  for (const a of acomps) {
+  for (const a of folhas) {
     porStatus[a.statusCumprimento] = (porStatus[a.statusCumprimento] ?? 0) + 1
   }
   return {
-    total:    acomps.length,
-    lancados: acomps.filter(a => a.id !== null).length,
+    total:    folhas.length,
+    lancados: folhas.filter(a => a.id !== null).length,
     porStatus,
   }
 }
@@ -42,10 +44,13 @@ const STATUS_ORDER: StatusCumprimento[] = ['atingido', 'parcial', 'nao_atingido'
 
 export default function EntradaMensalHub() {
   const api = useApi()
+  const { token: authToken } = useAuth()
   const navigate = useNavigate()
 
-  const hoje = new Date()
-  const mesDefault = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-01`
+  const mesDefault = useMemo(() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
+  }, [])
 
   const [unidades, setUnidades] = useState<UnidadeCard[]>([])
   const [loadingUnidades, setLoadingUnidades] = useState(true)
@@ -78,7 +83,8 @@ export default function EntradaMensalHub() {
     } finally {
       if (!signal.aborted) setLoadingUnidades(false)
     }
-  }, [])
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- evitar re-montar por ref instável de `api`
+  }, [authToken, mesDefault])
 
   useEffect(() => {
     const signal = { aborted: false }
@@ -86,7 +92,7 @@ export default function EntradaMensalHub() {
     return () => { signal.aborted = true }
   }, [carregarUnidades])
 
-  async function carregarProgresso(unidadeId: string, mesReferencia: string) {
+  const carregarProgresso = useCallback(async (unidadeId: string, mesReferencia: string) => {
     setProgressos(prev => ({ ...prev, [unidadeId]: null }))
     try {
       const raw = await api.get(`/acompanhamentos?unidadeId=${unidadeId}&mesReferencia=${mesReferencia}`)
@@ -95,13 +101,16 @@ export default function EntradaMensalHub() {
     } catch {
       setProgressos(prev => ({ ...prev, [unidadeId]: { total: 0, lancados: 0, porStatus: {} } }))
     }
-  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authToken, mesDefault])
 
   useEffect(() => {
     for (const u of unidades) {
-      carregarProgresso(u.id, meses[u.id] ?? mesDefault)
+      void carregarProgresso(u.id, meses[u.id] ?? mesDefault)
     }
-  }, [unidades])
+  // Trocar mês: handleMesChange chama carregarProgresso; não re-listar `meses` (evita N× pedidos a cada mês)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unidades, carregarProgresso, mesDefault])
 
   function handleMesChange(unidadeId: string, val: string) {
     const [a, m] = val.split('-')
@@ -129,7 +138,14 @@ export default function EntradaMensalHub() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-xl font-bold text-text-primary">Entrada Mensal</h1>
+      <div>
+        <h1 className="text-xl font-bold text-text-primary">Entrada Mensal</h1>
+        <p className="text-sm text-text-secondary mt-1 max-w-3xl">
+          O mês e o contador “Lançados” consideram <strong>metas folhas</strong> (linhas avulsas ou sub-metas).
+          Indicadores com <strong>pacote decomposto</strong> exigem um lançamento por sub-meta; a meta
+          <strong> agregada</strong> (pai) não recebe realizado.
+        </p>
+      </div>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {unidades.map(u => {
           const prog = progressos[u.id]

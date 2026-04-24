@@ -6,7 +6,7 @@ import {
   X as XIcon, Filter,
 } from 'lucide-react'
 import { useApi, ApiError } from '../../hooks/useApi'
-import { useAuth } from '../../contexts/AuthContext'
+import { usePermission } from '../../hooks/usePermission'
 import type { ContratoRecord } from './types'
 import {
   formatarMoeda, formatarData, formatarPercentual,
@@ -52,7 +52,8 @@ const MIN_W = 980
 // ── Row props ─────────────────────────────────────────────────────────────────
 interface RowProps {
   rows: ContratoRecord[]
-  canWrite: boolean
+  canUpdate: boolean
+  canDelete: boolean
   onEdit: (c: ContratoRecord) => void
   onDelete: (c: ContratoRecord) => void
 }
@@ -63,7 +64,8 @@ function ContratoRow({
   index,
   style,
   rows,
-  canWrite,
+  canUpdate,
+  canDelete,
   onEdit,
   onDelete,
 }: RowComponentProps<RowProps>) {
@@ -124,25 +126,25 @@ function ContratoRow({
 
       {/* Ações */}
       <div role="cell" className="flex items-center gap-1">
-        {canWrite && (
-          <>
-            <button
-              type="button"
-              onClick={() => onEdit(c)}
-              aria-label={`Editar contrato ${c.numeroContrato}`}
-              className="rounded-lg p-1.5 text-text-faint transition-colors hover:bg-primary/10 hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
-            >
-              <Edit3 size={15} />
-            </button>
-            <button
-              type="button"
-              onClick={() => onDelete(c)}
-              aria-label={`Excluir contrato ${c.numeroContrato}`}
-              className="rounded-lg p-1.5 text-text-faint transition-colors hover:bg-status-bad-bg hover:text-status-bad focus-visible:outline focus-visible:outline-2 focus-visible:outline-status-bad"
-            >
-              <Trash2 size={15} />
-            </button>
-          </>
+        {canUpdate && (
+          <button
+            type="button"
+            onClick={() => onEdit(c)}
+            aria-label={`Editar contrato ${c.numeroContrato}`}
+            className="rounded-lg p-1.5 text-text-faint transition-colors hover:bg-primary/10 hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+          >
+            <Edit3 size={15} />
+          </button>
+        )}
+        {canDelete && (
+          <button
+            type="button"
+            onClick={() => onDelete(c)}
+            aria-label={`Excluir contrato ${c.numeroContrato}`}
+            className="rounded-lg p-1.5 text-text-faint transition-colors hover:bg-status-bad-bg hover:text-status-bad focus-visible:outline focus-visible:outline-2 focus-visible:outline-status-bad"
+          >
+            <Trash2 size={15} />
+          </button>
         )}
       </div>
     </div>
@@ -152,8 +154,7 @@ function ContratoRow({
 // ── Main component ────────────────────────────────────────────────────────────
 export default function ContratosList() {
   const { get, del } = useApi()
-  const { hasPermission } = useAuth()
-  const canWrite = hasPermission(['admin', 'gestor_sms'])
+  const { canInsert, canUpdate, canDelete } = usePermission('contratos')
 
   // ── State ──────────────────────────────────────────────────────────────────
   const [lista, setLista]               = useState<ContratoRecord[]>([])
@@ -334,11 +335,12 @@ export default function ContratosList() {
   const rowProps: RowProps = useMemo(
     () => ({
       rows: filtrados,
-      canWrite,
+      canUpdate,
+      canDelete,
       onEdit:   (c) => setFormModal({ open: true, contrato: c }),
       onDelete: (c) => setDeleteModal({ open: true, contrato: c }),
     }),
-    [filtrados, canWrite],
+    [filtrados, canUpdate, canDelete],
   )
 
   const ROW_HEIGHT = 56
@@ -401,7 +403,7 @@ export default function ContratosList() {
           >
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
           </button>
-          {canWrite && (
+          {canInsert && (
             <button
               type="button"
               onClick={() => setFormModal({ open: true })}
@@ -535,7 +537,7 @@ export default function ContratosList() {
                 <p className="text-sm text-text-muted">
                   {hasFilters
                     ? 'Tente outros termos ou limpe os filtros.'
-                    : canWrite
+                    : canInsert
                       ? 'Clique em "Novo Contrato" para começar.'
                       : 'Entre em contato com o administrador.'}
                 </p>

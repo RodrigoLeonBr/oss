@@ -1,19 +1,19 @@
 const express = require('express');
 const ContratoController = require('../controllers/ContratoController');
 const auth = require('../middlewares/auth');
-const { authorize, PERFIS } = require('../middlewares/rbac');
+const { checkPermission } = require('../middlewares/rbac');
 const { auditar, auditarVisualizacao } = require('../middlewares/auditoria');
 
 const router = express.Router();
 const controller = new ContratoController();
 
-router.get('/', auth(), controller.listar);
-router.get('/:id', auth(), auditarVisualizacao('tb_contratos'), controller.buscarPorId);
+router.get('/', auth(), checkPermission('contratos', 'view'), controller.listar);
+router.get('/:id', auth(), checkPermission('contratos', 'view'), auditarVisualizacao('tb_contratos'), controller.buscarPorId);
 
 router.post(
     '/',
     auth(),
-    authorize(PERFIS.ADMIN),
+    checkPermission('contratos', 'insert'),
     auditar('tb_contratos', 'INSERT'),
     controller.criar,
 );
@@ -21,7 +21,7 @@ router.post(
 router.put(
     '/:id',
     auth(),
-    authorize(PERFIS.ADMIN),
+    checkPermission('contratos', 'update'),
     auditar('tb_contratos', 'UPDATE'),
     controller.atualizar,
 );
@@ -29,7 +29,7 @@ router.put(
 router.delete(
     '/:id',
     auth(),
-    authorize(PERFIS.ADMIN),
+    checkPermission('contratos', 'delete'),
     auditar('tb_contratos', 'DELETE'),
     controller.excluir,
 );
@@ -37,7 +37,7 @@ router.delete(
 router.post(
     '/:id/aditivos',
     auth(),
-    authorize(PERFIS.ADMIN),
+    checkPermission('contratos', 'insert'),
     auditar('tb_aditivos', 'INSERT'),
     controller.adicionarAditivo,
 );
@@ -45,7 +45,7 @@ router.post(
 router.post(
     '/:id/aditivos/:aditivoId/aplicar',
     auth(),
-    authorize(PERFIS.ADMIN),
+    checkPermission('contratos', 'update'),
     auditar('tb_aditivos', 'UPDATE'),
     controller.aplicarAditivo,
 );
