@@ -1,30 +1,30 @@
 #!/bin/sh
-# Servidor fraco: carrega a imagem pronta e sobe. NÃO compila nada.
-# Pré: oss-deploy.tar + docker-compose.deploy.yml + .env no mesmo dir.
-# Uso: sh scripts/deploy-load.sh   (rode a partir da raiz do projeto)
+# Servidor fraco: carrega as imagens prontas e sobe tudo. NÃO compila nada.
+# Pré: oss-deploy.tar + docker-compose.deploy.yml + .env no diretório ATUAL.
+# Uso: cd /opt/oss && sh deploy-load.sh
 set -e
-cd "$(dirname "$0")/.."
 
 TAR=oss-deploy.tar
 COMPOSE=docker-compose.deploy.yml
 
-[ -f "$TAR" ] || { echo "faltou $TAR"; exit 1; }
-[ -f .env ]   || { echo "faltou .env (JWT_SECRET, DB_*)"; exit 1; }
+[ -f "$TAR" ]     || { echo "faltou $TAR"; exit 1; }
+[ -f "$COMPOSE" ] || { echo "faltou $COMPOSE"; exit 1; }
+[ -f .env ]       || { echo "faltou .env (JWT_SECRET, DB_*)"; exit 1; }
 
-echo "==> docker load $TAR"
+echo "==> docker load $TAR (api + web + redis)"
 docker load -i "$TAR"
 
-echo "==> up"
+echo "==> up (redis + api + web)"
 docker compose -f "$COMPOSE" up -d
 
-echo "==> aguardando app ficar healthy"
+echo "==> aguardando api ficar healthy"
 for i in $(seq 1 30); do
-  s=$(docker inspect -f '{{.State.Health.Status}}' oss_app 2>/dev/null || echo starting)
+  s=$(docker inspect -f '{{.State.Health.Status}}' oss_api 2>/dev/null || echo starting)
   [ "$s" = healthy ] && break
   sleep 3
 done
 
 echo "==> migrate"
-docker compose -f "$COMPOSE" exec -T app npm run db:migrate
+docker compose -f "$COMPOSE" exec -T api npm run db:migrate
 
-echo "OK"
+echo "OK -> app em http://<SERVIDOR>:${WEB_PORT:-4000}"

@@ -1,15 +1,17 @@
-# Deploy em servidor fraco: usa imagem pronta (oss-app:latest), NÃO compila.
-# 1. No dev:    scripts/docker-save.ps1        -> gera oss-deploy.tar
+# Deploy em servidor fraco: usa imagens prontas, NÃO compila.
+# Topologia igual ao dev: redis + api (Node, 4001 interno) + web (nginx, :4000).
+# Acesse o app em http://SERVIDOR:4000 — o nginx encaminha /api para a api.
+# MySQL no host do servidor: configure DOCKER_DB_HOST e credenciais no .env.
+#
+# 1. No dev:    pwsh scripts/docker-save.ps1   -> gera oss-deploy.tar (api+web+redis)
 # 2. Copie:     oss-deploy.tar + este arquivo + .env  para o servidor
-# 3. No server: scripts/deploy-load.sh         -> docker load + up + migrate
+# 3. No server: sh scripts/deploy-load.sh      -> docker load + up + migrate
 
 services:
   redis:
     image: redis:7-alpine
     container_name: oss_redis
     restart: unless-stopped
-    ports:
-      - "6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -18,9 +20,9 @@ services:
       timeout: 5s
       retries: 3
 
-  app:
-    image: oss-app:latest
-    container_name: oss_app
+  api:
+    image: oss-api:latest
+    container_name: oss_api
     restart: unless-stopped
     depends_on:
       redis:
@@ -45,8 +47,6 @@ services:
       REDIS_PORT: 6379
       REDIS_USE_PASSWORD: ${REDIS_USE_PASSWORD:-no}
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
-    ports:
-      - "${PORT:-4001}:4001"
     volumes:
       - app_logs:/usr/src/app/logs
     healthcheck:
@@ -55,6 +55,16 @@ services:
       timeout: 10s
       retries: 3
       start_period: 20s
+
+  web:
+    image: oss-web:latest
+    container_name: oss_web
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "${WEB_PORT:-4000}:4000"
 
 volumes:
   redis_data:
