@@ -3,6 +3,7 @@ const httpStatus = require('http-status');
 const ApiError = require('../helper/ApiError');
 const { assertIndicadorNoEscopoOSS, assertMetaNoEscopoOSS } = require('../helper/ossScopeHelper');
 const db = require('../models');
+const { recomputarStatusDaMeta } = require('./AcompanhamentoService');
 
 /** metaMinima/Parcial em tb_metas: percentual 0–100 sobre a referência (meta_mensal ou meta_valor_qualit). */
 
@@ -358,6 +359,8 @@ const atualizar = async (id, payload, ossIdFiltro = null) => {
   }
 
   await meta.update(dados);
+  // Avaliação viva: reavalia os meses já lançados desta meta com a config atual.
+  await recomputarStatusDaMeta(id);
   return buscarPorId(id);
 };
 

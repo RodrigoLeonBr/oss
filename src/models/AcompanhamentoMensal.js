@@ -19,7 +19,9 @@ class AcompanhamentoMensal extends Model {
         },
         valor_realizado: DataTypes.DECIMAL(15, 4),
         percentual_cumprimento: { type: DataTypes.VIRTUAL, get() {
-          const meta = parseFloat(this.getDataValue('meta_vigente_mensal'));
+          // Quantitativo usa meta_vigente_mensal; qualitativo usa meta_vigente_qualit
+          const meta = parseFloat(this.getDataValue('meta_vigente_mensal'))
+            || parseFloat(this.getDataValue('meta_vigente_qualit'));
           const real = parseFloat(this.getDataValue('valor_realizado'));
           if (meta && meta > 0 && real !== null) return parseFloat(((real / meta) * 100).toFixed(4));
           return null;

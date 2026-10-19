@@ -6,6 +6,8 @@ class Indicador extends Model {
       {
         indicador_id: { type: DataTypes.CHAR(36), primaryKey: true, defaultValue: sequelize.literal('(UUID())') },
         unidade_id: DataTypes.CHAR(36),
+        contrato_id: DataTypes.CHAR(36),
+        ano: DataTypes.SMALLINT,
         bloco_id: DataTypes.CHAR(36),
         codigo: { type: DataTypes.STRING(50), allowNull: false, unique: true },
         nome: { type: DataTypes.STRING(300), allowNull: false },
@@ -25,6 +27,7 @@ class Indicador extends Model {
         prazo_implantacao: DataTypes.DATEONLY,
         versao: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 },
         ativo: { type: DataTypes.TINYINT(1), allowNull: false, defaultValue: 1 },
+        obrigatorio: { type: DataTypes.TINYINT(1), allowNull: false, defaultValue: 1 },
       },
       {
         sequelize,
@@ -41,6 +44,7 @@ class Indicador extends Model {
 
   static associate(models) {
     this.belongsTo(models.unidade, { foreignKey: 'unidade_id', as: 'unidade' });
+    this.belongsTo(models.contrato, { foreignKey: 'contrato_id', as: 'contrato' });
     this.belongsTo(models.bloco_producao, { foreignKey: 'bloco_id', as: 'bloco' });
     this.hasMany(models.meta, { foreignKey: 'indicador_id', as: 'metas' });
     this.hasMany(models.acompanhamento_mensal, { foreignKey: 'indicador_id', as: 'acompanhamentos' });

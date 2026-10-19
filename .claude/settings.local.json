@@ -28,7 +28,9 @@
       "Bash(node -e \"require\\('./src/app'\\); console.log\\('OK'\\);\")",
       "Bash(grep -v \"^$\")",
       "Bash(node -e \"const {authorize, verificarAcessoUnidade, checkPermission} = require\\('./src/middlewares/rbac'\\); console.log\\(typeof checkPermission\\);\")",
-      "Bash(git *)"
+      "Bash(git *)",
+      "Read(//e/xampp/mysql/bin/**)",
+      "Bash(E:/xampp/mysql/bin/mysqladmin.exe -u root ping)"
     ]
   },
   "enabledPlugins": {

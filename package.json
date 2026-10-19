@@ -18,9 +18,14 @@
     "docker:build": "docker compose build",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
-    "docker:logs": "docker compose logs -f app",
-    "docker:migrate": "docker compose exec app npm run db:migrate",
-    "docker:seed": "docker compose exec app npm run db:seed"
+    "docker:logs": "docker compose logs -f api web",
+    "docker:migrate": "docker compose exec api npm run db:migrate",
+    "docker:seed": "docker compose exec api npm run db:seed",
+    "docker:prod:up": "docker compose -f docker-compose.prod.yml up -d",
+    "docker:prod:build": "docker compose -f docker-compose.prod.yml build",
+    "docker:prod:down": "docker compose -f docker-compose.prod.yml down",
+    "docker:prod:migrate": "docker compose -f docker-compose.prod.yml exec app npm run db:migrate",
+    "docker:prod:seed": "docker compose -f docker-compose.prod.yml exec app npm run db:seed"
   },
   "author": "Kazi Naimul Hoque (Aoyan)",
   "license": "MIT",

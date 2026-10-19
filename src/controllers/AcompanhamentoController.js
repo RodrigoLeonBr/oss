@@ -98,6 +98,18 @@ class AcompanhamentoController {
         }
     };
 
+    revogar = async (req, res, next) => {
+        try {
+            const { id } = req.params;
+            const ossIdFiltro = getOssIdSeEscopoProprio(req);
+            const registro = await AcompanhamentoService.revogar(id, ossIdFiltro);
+            return res.status(httpStatus.OK).json({ status: true, message: 'Aprovação revogada', data: registro });
+        } catch (e) {
+            logger.error(e);
+            return next(e);
+        }
+    };
+
     calcularDescontos = async (req, res, next) => {
         try {
             const { mes, contrato_id } = req.query;

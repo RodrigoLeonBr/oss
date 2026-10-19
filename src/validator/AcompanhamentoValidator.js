@@ -1,8 +1,11 @@
 const Joi = require('joi');
 
+// IDs do seed não são GUID hex; aceita formato 8-4-4-4-12 alfanumérico + UUID real
+const ID = () => Joi.string().pattern(/^[0-9A-Za-z]{8}-[0-9A-Za-z]{4}-[0-9A-Za-z]{4}-[0-9A-Za-z]{4}-[0-9A-Za-z]{12}$/);
+
 const criarAcompanhamento = Joi.object({
-    indicador_id: Joi.string().uuid().required(),
-    meta_id: Joi.string().uuid().required(),
+    indicador_id: ID().required(),
+    meta_id: ID().required(),
     mes_referencia: Joi.string()
         .pattern(/^\d{4}-\d{2}-01$/)
         .required()
@@ -19,8 +22,8 @@ const aprovarAcompanhamento = Joi.object({
 
 const listarAcompanhamentos = Joi.object({
     mes: Joi.string().pattern(/^\d{4}-\d{2}-01$/).optional(),
-    unidade_id: Joi.string().uuid().optional(),
-    indicador_id: Joi.string().uuid().optional(),
+    unidade_id: ID().optional(),
+    indicador_id: ID().optional(),
     status: Joi.string().valid('cumprido', 'parcial', 'nao_cumprido', 'nao_aplicavel', 'aguardando').optional(),
     status_aprovacao: Joi.string().valid('rascunho', 'submetido', 'aprovado', 'rejeitado').optional(),
 });
