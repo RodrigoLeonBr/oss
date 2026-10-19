@@ -10,6 +10,7 @@ const metaRoute = require('./metaRoute');
 const acompanhamentosRoute = require('./acompanhamentosRoute');
 const usuarioRoute = require('./usuarioRoute');
 const permissaoRoute = require('./permissaoRoute');
+const relatorioCmsRoute = require('./relatorioCmsRoute');
 
 const router = express.Router();
 
@@ -29,6 +30,7 @@ const defaultRoutes = [
     { path: '/acompanhamentos', route: acompanhamentosRoute },
     { path: '/usuarios', route: usuarioRoute },
     { path: '/permissoes', route: permissaoRoute },
+    { path: '/relatorios', route: relatorioCmsRoute },
 ];
 
 defaultRoutes.forEach((route) => {

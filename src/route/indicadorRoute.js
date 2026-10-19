@@ -20,6 +20,15 @@ router.post(
     controller.criar,
 );
 
+// ── Duplicar indicadores de uma unidade p/ outra (renovação de contrato) ──────
+router.post(
+    '/duplicar',
+    auth(),
+    checkPermission('indicadores', 'insert'),
+    auditar('tb_indicadores', 'INSERT'),
+    controller.duplicar,
+);
+
 // ── Atualização — admin e gestor_sms ─────────────────────────────────────────
 router.put(
     '/:id',

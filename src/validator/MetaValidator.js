@@ -1,15 +1,18 @@
 const Joi = require('joi');
 
+// IDs do seed não são GUID hex (ex.: iiii0005-...); aceita formato 8-4-4-4-12 alfanumérico + UUID real
+const ID = () => Joi.string().pattern(/^[0-9A-Za-z]{8}-[0-9A-Za-z]{4}-[0-9A-Za-z]{4}-[0-9A-Za-z]{4}-[0-9A-Za-z]{12}$/);
+
 // ── Listar — aceita query params camelCase (frontend) e snake_case (legado) ───
 const listarMetas = Joi.object({
-    indicadorId:  Joi.string().uuid().optional(),
-    indicador_id: Joi.string().uuid().optional(),
+    indicadorId:  ID().optional(),
+    indicador_id: ID().optional(),
     status:       Joi.string().valid('vigente', 'encerrada').optional(),
 });
 
 // ── Criar — vigência fica no indicador; não enviar (ignorado se enviado) ─────
 const criarMeta = Joi.object({
-    indicadorId:      Joi.string().uuid().required()
+    indicadorId:      ID().required()
                          .messages({ 'any.required': 'indicadorId é obrigatório', 'string.guid': 'indicadorId inválido' }),
     nome:             Joi.string().min(1).max(500).required()
                          .messages({ 'any.required': 'nome é obrigatório' }),
@@ -24,12 +27,12 @@ const criarMeta = Joi.object({
     unidadeMedida:    Joi.string().max(50).optional().allow('', null),
     observacoes:      Joi.string().optional().allow('', null),
     metaTipo:         Joi.string().valid('maior_igual', 'menor_igual').default('maior_igual'),
-    aditivoId:        Joi.string().uuid().optional().allow(null),
+    aditivoId:        ID().optional().allow(null),
 }).or('metaMensal', 'metaAnual', 'metaValorQualit');
 
 // ── Atualizar — sem vigência (fonte: indicador) ──────────────────────────────
 const atualizarMeta = Joi.object({
-    indicadorId:      Joi.string().uuid().optional().strip(),
+    indicadorId:      ID().optional().strip(),
     nome:             Joi.string().min(1).max(500).optional(),
     vigenciaInicio:   Joi.string().isoDate().optional().strip(),
     vigenciaFim:      Joi.string().isoDate().optional().strip(),
@@ -68,7 +71,7 @@ const componenteLinha = Joi.object({
 });
 
 const criarMetaPacote = Joi.object({
-  indicadorId: Joi.string().uuid().required(),
+  indicadorId: ID().required(),
   agregada: agregadaPacote.required(),
   componentes: Joi.array().items(componenteLinha).min(1).required(),
 });

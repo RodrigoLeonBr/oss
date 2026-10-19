@@ -77,6 +77,7 @@ const EMPTY: IndicadorFormData = {
   vigenciaFim:     '',
   prazoImplantacao: '',
   status:        'ativo',
+  obrigatorio:   true,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -97,6 +98,7 @@ export default function IndicadoresFormModal({ indicador, unidadeId, onSalvo, on
           vigenciaFim:   indicador.vigenciaFim ?? '',
           prazoImplantacao: indicador.prazoImplantacao ?? '',
           status:        indicador.status,
+          obrigatorio:   indicador.obrigatorio ?? true,
         }
       : EMPTY,
   )
@@ -176,6 +178,7 @@ export default function IndicadoresFormModal({ indicador, unidadeId, onSalvo, on
       vigenciaFim:   form.vigenciaFim.trim() || null,
       prazoImplantacao: form.prazoImplantacao.trim() || null,
       status:        form.status,
+      obrigatorio:   form.obrigatorio,
     }
 
     setLoading(true)
@@ -459,6 +462,23 @@ export default function IndicadoresFormModal({ indicador, unidadeId, onSalvo, on
                   </select>
                 </Field>
               </div>
+
+              {/* Obrigatório x Informativo */}
+              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border-subtle bg-surface-alt/40 px-3 py-3">
+                <input
+                  type="checkbox"
+                  checked={form.obrigatorio}
+                  onChange={e => setField('obrigatorio', e.target.checked)}
+                  className="mt-0.5 h-4 w-4 cursor-pointer accent-primary"
+                />
+                <span className="text-sm">
+                  <span className="font-medium text-text-primary">Indicador obrigatório</span>
+                  <span className="block text-xs text-text-muted">
+                    Entra no cálculo de metas, Dashboard e Relatório CMS. Desmarque para
+                    indicador <strong>informativo</strong> (fica fora do Dashboard e do CMS).
+                  </span>
+                </span>
+              </label>
 
             </div>
           </div>

@@ -9,15 +9,15 @@ const {
 } = require('../helper/ossScopeHelper');
 const db = require('../models');
 const logger = require('../config/logger');
+const { nivelCumprimento, faixasEfetivas } = require('../helper/avaliacaoCumprimento');
+const { baseMetaReferencia, absFromPercentualBase } = require('../helper/metaValoresAlvo');
 
 const acompanhamentoDao = new AcompanhamentoDao();
 
-const calcularStatusCumprimento = (percentual) => {
-    if (percentual === null || percentual === undefined) return 'aguardando';
-    if (percentual >= 100) return 'cumprido';
-    if (percentual >= 85) return 'parcial';
-    return 'nao_cumprido';
-};
+// Avalia o percentual segundo direção + faixas da meta (padrões 100/85 maior, 100/115 menor).
+// `meta` pode ser a meta vigente ou o próprio acomp (tem meta_tipo_snap/meta_minima/meta_parcial).
+const calcularStatusCumprimento = (percentual, meta = null) =>
+    nivelCumprimento(percentual, faixasEfetivas(meta));
 
 const calcularFaixaProducao = (percentual) => {
     if (percentual === null || percentual === undefined) return null;
@@ -55,7 +55,10 @@ const criarOuAtualizar = async (dados, usuarioId, ossIdFiltro = null) => {
     await assertMetaNoEscopoOSS(meta_id, ossIdFiltro);
 
     const metaMensal = meta_vigente_mensal || parseFloat(meta.meta_mensal) || 0;
-    const percentual = metaMensal > 0 ? parseFloat(((valor_realizado / metaMensal) * 100).toFixed(4)) : null;
+    const metaQualit = meta_vigente_qualit || parseFloat(meta.meta_valor_qualit) || 0;
+    // Quantitativo mede contra a meta mensal; qualitativo contra a meta qualitativa
+    const metaBase = metaMensal > 0 ? metaMensal : metaQualit;
+    const percentual = metaBase > 0 ? parseFloat(((valor_realizado / metaBase) * 100).toFixed(4)) : null;
 
     const payload = {
         indicador_id,
@@ -64,7 +67,7 @@ const criarOuAtualizar = async (dados, usuarioId, ossIdFiltro = null) => {
         meta_vigente_mensal: metaMensal || null,
         meta_vigente_qualit: meta_vigente_qualit || parseFloat(meta.meta_valor_qualit) || null,
         valor_realizado: parseFloat(valor_realizado),
-        status_cumprimento: calcularStatusCumprimento(percentual),
+        status_cumprimento: calcularStatusCumprimento(percentual, meta),
         faixa_producao: calcularFaixaProducao(percentual),
         descricao_desvios: descricao_desvios || null,
         preenchido_por: usuarioId,
@@ -109,6 +112,21 @@ const rejeitar = async (acompId, auditoraId, motivo, ossIdFiltro = null) => {
         aprovado_por: auditoraId,
         data_aprovacao: new Date(),
         motivo_rejeicao: motivo,
+    });
+
+    return registro.reload();
+};
+
+const revogar = async (acompId, ossIdFiltro = null) => {
+    await assertAcompanhamentoNoEscopoOSS(acompId, ossIdFiltro);
+    const registro = await db.acompanhamento_mensal.findOne({ where: { acomp_id: acompId } });
+    if (!registro) throw new ApiError(httpStatus.NOT_FOUND, 'Acompanhamento não encontrado');
+
+    await registro.update({
+        status_aprovacao: 'submetido',
+        aprovado_por: null,
+        data_aprovacao: null,
+        motivo_rejeicao: null,
     });
 
     return registro.reload();
@@ -262,4 +280,44 @@ const calcularRepasse = async (mesReferencia, contratoId, ossIdFiltro = null) =>
     return repasse;
 };
 
-module.exports = { criarOuAtualizar, aprovar, rejeitar, calcularDescontosDoMes, calcularRepasse, obterMetaVigente };
+/**
+ * Reavalia (vivo) o status_cumprimento de todos os acompanhamentos de uma meta
+ * com a config ATUAL (direção + faixas) e re-snapshota os limites absolutos.
+ * Chamar após criar/editar meta.
+ * @returns {Promise<number>} nº de acompanhamentos atualizados
+ */
+const recomputarStatusDaMeta = async (metaId) => {
+    const meta = await db.meta.findOne({ where: { meta_id: metaId } });
+    if (!meta) return 0;
+    const acomps = await db.acompanhamento_mensal.findAll({ where: { meta_id: metaId } });
+    const base = baseMetaReferencia(meta);
+    const minAbs = absFromPercentualBase(base, meta.meta_minima);
+    const parAbs = absFromPercentualBase(base, meta.meta_parcial);
+    for (const a of acomps) {
+        const b = a.meta_vigente_mensal != null ? parseFloat(a.meta_vigente_mensal)
+            : (a.meta_vigente_qualit != null ? parseFloat(a.meta_vigente_qualit) : null);
+        const real = a.valor_realizado != null ? parseFloat(a.valor_realizado) : null;
+        const pct = (b && b > 0 && real != null) ? parseFloat(((real / b) * 100).toFixed(4)) : null;
+        // eslint-disable-next-line no-await-in-loop
+        await a.update({
+            status_cumprimento: calcularStatusCumprimento(pct, meta),
+            meta_tipo_snap: meta.meta_tipo || 'maior_igual',
+            meta_minima: minAbs,
+            meta_parcial: parAbs,
+        });
+    }
+    return acomps.length;
+};
+
+module.exports = {
+    criarOuAtualizar,
+    aprovar,
+    rejeitar,
+    revogar,
+    calcularDescontosDoMes,
+    calcularRepasse,
+    obterMetaVigente,
+    calcularStatusCumprimento,
+    calcularFaixaProducao,
+    recomputarStatusDaMeta,
+};
