@@ -11,6 +11,8 @@ const acompanhamentosRoute = require('./acompanhamentosRoute');
 const usuarioRoute = require('./usuarioRoute');
 const permissaoRoute = require('./permissaoRoute');
 const relatorioCmsRoute = require('./relatorioCmsRoute');
+const mapaProducaoRoute = require('./mapaProducaoRoute');
+const ponteProducaoRoute = require('./ponteProducaoRoute');
 
 const router = express.Router();
 
@@ -31,6 +33,8 @@ const defaultRoutes = [
     { path: '/usuarios', route: usuarioRoute },
     { path: '/permissoes', route: permissaoRoute },
     { path: '/relatorios', route: relatorioCmsRoute },
+    { path: '/mapa-producao', route: mapaProducaoRoute },
+    { path: '/ponte-producao', route: ponteProducaoRoute },
 ];
 
 defaultRoutes.forEach((route) => {

@@ -22,6 +22,8 @@ const MetasHub           = lazy(() => import('./pages/Metas/MetasHub'))
 const MetasList          = lazy(() => import('./pages/Metas/MetasList'))
 const UsuariosList       = lazy(() => import('./pages/Admin/UsuariosList'))
 const PermissoesMatrix   = lazy(() => import('./pages/Admin/PermissoesMatrix'))
+const PonteProducaoPage  = lazy(() => import('./pages/Producao/PonteProducaoPage'))
+const MapaProducaoPage   = lazy(() => import('./pages/Producao/MapaProducaoPage'))
 
 const Spinner = () => (
   <div className="flex h-screen items-center justify-center bg-canvas">
@@ -68,6 +70,8 @@ export default function App() {
         <Route path="/entrada-mensal/:unidadeId" element={<Guarded modulo="entrada_mensal"><EntradaMensalList /></Guarded>} />
         <Route path="/aprovacao"               element={<Guarded modulo="aprovacao"><AprovacaoPage /></Guarded>} />
         <Route path="/relatorios"              element={<Guarded modulo="relatorios"><RelatoriosCMSPage /></Guarded>} />
+        <Route path="/ponte-producao"          element={<Guarded modulo="relatorios"><PonteProducaoPage /></Guarded>} />
+        <Route path="/mapa-producao"           element={<Guarded modulo="relatorios"><MapaProducaoPage /></Guarded>} />
         <Route path="/perfil-oss"              element={<Guarded modulo="perfil_oss"><PerfilOSSPage /></Guarded>} />
         <Route path="/oss/*"                   element={<Guarded modulo="oss"><OssList /></Guarded>} />
         <Route path="/contratos/*"             element={<Guarded modulo="contratos"><ContratosList /></Guarded>} />
