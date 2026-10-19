@@ -244,6 +244,66 @@ const serieMensal = async (params, ossIdFiltro = null) => {
   return out;
 };
 
+/**
+ * Detalhe mês a mês por indicador (para o modal de detalhe do Dashboard).
+ * Mesmos params/escopo do relatório CMS. Agregado já vem do `gerar`; aqui
+ * devolvemos só a matriz mensal para montar tabela + gráfico de evolução.
+ * @returns {Promise<Object<string, Array<{mes:string, realizado:number|null, meta:number|null}>>>}
+ *   mapa indicadorId → pontos mensais em ordem decrescente de mês.
+ */
+const detalheMensal = async (params, ossIdFiltro = null) => {
+  const {
+    mes, periodo, escopo, contratoId, unidadeId,
+  } = params;
+  const janela = janelaDoPeriodo(mes, periodo);
+
+  if (escopo === 'contrato') await assertContratoNoEscopoOSS(contratoId, ossIdFiltro);
+  if (escopo === 'unidade') await assertUnidadeNoEscopoOSS(unidadeId, ossIdFiltro);
+
+  const indicadores = await fetchIndicadoresNoEscopo(
+    { escopo, contratoId, unidadeId }, ossIdFiltro, { comMetas: true },
+  );
+  const indicadorIds = indicadores.map((i) => i.indicador_id);
+
+  // Meta de fallback por indicador (quando o acomp não tem meta_vigente_mensal).
+  const metaFallback = new Map();
+  for (const ind of indicadores) {
+    const m = metaVigente(ind.metas);
+    const isQual = ind.tipo === 'qualitativo';
+    const v = m
+      ? parseFloat((isQual ? m.meta_valor_qualit : m.meta_mensal) ?? 0)
+      : null;
+    metaFallback.set(ind.indicador_id, { isQual, v });
+  }
+
+  const acomps = indicadorIds.length
+    ? await db.acompanhamento_mensal.findAll({
+      where: {
+        indicador_id: { [Op.in]: indicadorIds },
+        mes_referencia: { [Op.between]: [janela.inicio, janela.fim] },
+      },
+    })
+    : [];
+
+  const porIndicador = {};
+  for (const a of acomps) {
+    const fb = metaFallback.get(a.indicador_id) || { isQual: false, v: null };
+    const meta = fb.isQual
+      ? fb.v
+      : (a.meta_vigente_mensal != null ? parseFloat(a.meta_vigente_mensal) : fb.v);
+    (porIndicador[a.indicador_id] ||= []).push({
+      mes: String(a.mes_referencia).slice(0, 7),
+      realizado: a.valor_realizado != null ? parseFloat(a.valor_realizado) : null,
+      meta,
+    });
+  }
+  // Ordem decrescente de mês.
+  for (const id of Object.keys(porIndicador)) {
+    porIndicador[id].sort((x, y) => y.mes.localeCompare(x.mes));
+  }
+  return porIndicador;
+};
+
 /** Último mês com acompanhamento lançado (YYYY-MM-01) ou null. */
 const ultimoMesComDados = async () => {
   const row = await db.acompanhamento_mensal.findOne({
@@ -254,5 +314,5 @@ const ultimoMesComDados = async () => {
 };
 
 module.exports = {
-  gerar, serieMensal, ultimoMesComDados, metaDoPeriodo, buildEscopoWhere,
+  gerar, serieMensal, detalheMensal, ultimoMesComDados, metaDoPeriodo, buildEscopoWhere,
 };

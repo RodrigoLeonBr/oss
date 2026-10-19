@@ -8,6 +8,7 @@ const controller = new RelatorioCmsController();
 
 router.get('/cms', auth(), checkPermission('relatorios', 'view'), controller.cms);
 router.get('/serie-mensal', auth(), checkPermission('relatorios', 'view'), controller.serie);
+router.get('/cms-mensal', auth(), checkPermission('relatorios', 'view'), controller.cmsMensal);
 router.get('/ultimo-mes', auth(), checkPermission('relatorios', 'view'), controller.ultimoMes);
 
 module.exports = router;

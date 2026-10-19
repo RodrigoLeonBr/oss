@@ -11,6 +11,7 @@ import RelatorioFiltros, {
 import { useApi, ApiError } from '../hooks/useApi'
 import { formatCurrency, formatMesReferencia, formatNumber } from '../lib/formatters'
 import type { StatusCumprimento } from '../types'
+import IndicadoresDetalheModal, { type ContratoRel } from './IndicadoresDetalheModal'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, ArcElement, BarElement, Tooltip, Legend)
 
@@ -18,9 +19,6 @@ const TICK_COLOR = '#8e9cae'
 const GRID_COLOR = 'rgba(142,156,174,0.12)'
 
 // ── Tipos das respostas ─────────────────────────────────────────────────────────
-interface Linha { status: StatusCumprimento }
-interface UnidadeRel { unidadeId: string; nome: string; quantitativos: Linha[]; qualitativos: Linha[] }
-interface ContratoRel { contratoId: string; numero: string; unidades: UnidadeRel[] }
 interface Relatorio {
   janela: { inicio: string; fim: string; meses: number }
   resumo: { cumpridos: number; parciais: number; naoCumpridos: number; aguardando: number; total: number }
@@ -63,6 +61,7 @@ export default function DashboardPage() {
   const [repasse, setRepasse] = useState<Repasse | null>(null)
   const [loading, setLoading] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
+  const [cardStatus, setCardStatus] = useState<StatusCumprimento | null>(null)
 
   const fetchTudo = useCallback(async () => {
     if (!filtros.mes || escopoIncompleto(filtros)) { setRel(null); setSerie([]); setRepasse(null); return }
@@ -202,10 +201,10 @@ export default function DashboardPage() {
           {/* KPIs */}
           <section>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <Kpi n={rel.resumo.cumpridos} label="Cumpridos" tom="ok" />
-              <Kpi n={rel.resumo.parciais} label="Parciais" tom="warn" />
-              <Kpi n={rel.resumo.naoCumpridos} label="Não cumpridos" tom="bad" />
-              <Kpi n={rel.resumo.aguardando} label="Aguardando" tom="muted" />
+              <Kpi n={rel.resumo.cumpridos} label="Cumpridos" tom="ok" onClick={() => setCardStatus('cumprido')} />
+              <Kpi n={rel.resumo.parciais} label="Parciais" tom="warn" onClick={() => setCardStatus('parcial')} />
+              <Kpi n={rel.resumo.naoCumpridos} label="Não cumpridos" tom="bad" onClick={() => setCardStatus('nao_cumprido')} />
+              <Kpi n={rel.resumo.aguardando} label="Aguardando" tom="muted" onClick={() => setCardStatus('aguardando')} />
             </div>
             <div className="mt-3 rounded-xl border border-border-subtle bg-surface p-3 shadow-sm">
               <div className="mb-1.5 flex items-center justify-between">
@@ -261,6 +260,16 @@ export default function DashboardPage() {
           </section>
         </>
       )}
+
+      {cardStatus && rel && (
+        <IndicadoresDetalheModal
+          status={cardStatus}
+          contratos={rel.contratos}
+          filtros={filtros}
+          multiMes={rel.janela.meses > 1}
+          onClose={() => setCardStatus(null)}
+        />
+      )}
     </div>
   )
 }
@@ -268,11 +277,12 @@ export default function DashboardPage() {
 const KPI_TOM: Record<string, string> = {
   ok: 'text-status-ok', warn: 'text-status-warn', bad: 'text-status-bad', muted: 'text-text-muted',
 }
-function Kpi({ n, label, tom }: { n: number; label: string; tom: string }) {
+function Kpi({ n, label, tom, onClick }: { n: number; label: string; tom: string; onClick?: () => void }) {
   return (
-    <div className="rounded-xl border border-border-subtle bg-surface p-3 text-center shadow-sm">
+    <button type="button" onClick={onClick}
+      className="rounded-xl border border-border-subtle bg-surface p-3 text-center shadow-sm transition-colors hover:border-primary/40 hover:bg-hover focus:outline-none focus:ring-2 focus:ring-primary/40">
       <p className={`font-mono text-2xl font-bold tabular-nums ${KPI_TOM[tom] ?? ''}`}>{formatNumber(n)}</p>
       <p className="mt-0.5 text-xs text-text-muted">{label}</p>
-    </div>
+    </button>
   )
 }

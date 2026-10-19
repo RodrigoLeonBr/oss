@@ -27,6 +27,27 @@ class RelatorioCmsController {
     }
   };
 
+  cmsMensal = async (req, res, next) => {
+    try {
+      const { error, value } = gerarRelatorioCms.validate(req.query);
+      if (error) return next(new ApiError(httpStatus.BAD_REQUEST, error.details[0].message));
+
+      const ossIdFiltro = getOssIdSeEscopoProprio(req);
+      const data = await RelatorioCmsService.detalheMensal({
+        mes: value.mes,
+        periodo: value.periodo,
+        escopo: value.escopo,
+        contratoId: value.contrato_id,
+        unidadeId: value.unidade_id,
+      }, ossIdFiltro);
+
+      return res.status(httpStatus.OK).json({ status: true, data });
+    } catch (e) {
+      logger.error(e);
+      return next(e);
+    }
+  };
+
   ultimoMes = async (req, res, next) => {
     try {
       const mes = await RelatorioCmsService.ultimoMesComDados();
