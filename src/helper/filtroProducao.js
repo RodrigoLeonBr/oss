@@ -3,6 +3,23 @@
 
 const COMPRIMENTO = { grupo: 2, subgrupo: 4, forma: 6, procedimento: 10 };
 const COLUNA = { sia: 'prd_pa', sih: 'PROC_DETALHADO' };
+const COLUNA_CBO = { sia: 'prd_cbo', sih: 'CBO_PROFISSIONAL' };
+
+/** Valida CBO: só dígitos, 4 (família) ou 6 (ocupação). Lança Error se inválido. */
+function validarCbo(cbo) {
+  if (typeof cbo !== 'string' || !/^\d+$/.test(cbo) || (cbo.length !== 4 && cbo.length !== 6)) {
+    throw new Error('cbo deve ter 4 (família) ou 6 (ocupação) dígitos numéricos');
+  }
+  return true;
+}
+
+/** Cláusula de CBO (prefixo LIKE). @returns {{ coluna:string, valor:string }} */
+function clausulaCbo(fonte, cbo) {
+  const coluna = COLUNA_CBO[fonte];
+  if (!coluna) throw new Error(`fonte inválida: ${fonte}`);
+  validarCbo(cbo);
+  return { coluna, valor: `${cbo}%` };
+}
 
 /** Valida valor por tipo: só dígitos e comprimento exato. Lança Error se inválido. */
 function validarValorFiltro(tipoFiltro, valor) {
@@ -27,7 +44,7 @@ function clausulaFiltro(fonte, tipoFiltro, valor) {
   return { coluna, operador: 'LIKE', valor: `${valor}%` };
 }
 
-module.exports = { validarValorFiltro, clausulaFiltro, COMPRIMENTO, COLUNA };
+module.exports = { validarValorFiltro, clausulaFiltro, validarCbo, clausulaCbo, COMPRIMENTO, COLUNA, COLUNA_CBO };
 
 // ── Self-check (node src/helper/filtroProducao.js) ───────────────────────────
 if (require.main === module) {
@@ -48,6 +65,12 @@ if (require.main === module) {
   assert.throws(() => validarValorFiltro('grupo', '0301'), /2 dígitos/);
   assert.throws(() => validarValorFiltro('procedimento', '03AB010010'), /10 dígitos/);
   assert.throws(() => clausulaFiltro('xpto', 'grupo', '03'), /fonte inválida/);
+
+  assert.deepStrictEqual(clausulaCbo('sia', '223505'), { coluna: 'prd_cbo', valor: '223505%' });
+  assert.deepStrictEqual(clausulaCbo('sia', '2235'), { coluna: 'prd_cbo', valor: '2235%' });
+  assert.deepStrictEqual(clausulaCbo('sih', '322205'), { coluna: 'CBO_PROFISSIONAL', valor: '322205%' });
+  assert.throws(() => validarCbo('22350'), /4 \(família\) ou 6/);
+  assert.throws(() => validarCbo('22AB05'), /dígitos/);
 
   console.log('OK');
 }

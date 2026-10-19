@@ -9,6 +9,7 @@ class MapaProducao extends Model {
         fonte: { type: DataTypes.ENUM('sia', 'sih'), allowNull: false, defaultValue: 'sia' },
         tipo_filtro: { type: DataTypes.ENUM('grupo', 'subgrupo', 'forma', 'procedimento'), allowNull: false },
         valor_filtro: { type: DataTypes.STRING(10), allowNull: false },
+        cbo: { type: DataTypes.STRING(6), allowNull: true }, // prefixo: 4=família, 6=ocupação; null=sem restrição
         ativo: { type: DataTypes.TINYINT(1), allowNull: false, defaultValue: 1 },
       },
       {

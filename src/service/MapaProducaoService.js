@@ -35,6 +35,7 @@ const criar = async (value, ossIdFiltro = null) => {
     fonte: value.fonte,
     tipo_filtro: value.tipoFiltro,
     valor_filtro: value.valorFiltro,
+    cbo: value.cbo || null,
   });
 };
 
@@ -44,6 +45,7 @@ const atualizar = async (mapaId, value, ossIdFiltro = null) => {
   if (value.fonte !== undefined) registro.fonte = value.fonte;
   if (value.tipoFiltro !== undefined) registro.tipo_filtro = value.tipoFiltro;
   if (value.valorFiltro !== undefined) registro.valor_filtro = value.valorFiltro;
+  if (value.cbo !== undefined) registro.cbo = value.cbo || null;
   if (value.ativo !== undefined) registro.ativo = value.ativo ? 1 : 0;
   await registro.save();
   return registro;

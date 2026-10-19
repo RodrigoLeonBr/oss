@@ -15,7 +15,7 @@ import {
   formatarMeta, unwrap, mockIndicadores,
 } from './types'
 import type { UnidadeRecord } from '../Unidades/types'
-import { mockUnidades } from '../Unidades/types'
+import { mockUnidades, formatarCnesOuDoc } from '../Unidades/types'
 import IndicadoresFormModal from './IndicadoresFormModal'
 import IndicadoresDeleteModal from './IndicadoresDeleteModal'
 
@@ -467,6 +467,11 @@ export default function IndicadoresList() {
                   {unidade ? (
                     <>
                       <span className="font-medium text-text-secondary">{unidade.nome}</span>
+                      {unidade.cnes && (
+                        <span className="ml-1 text-text-faint">
+                          · CNES <span className="font-mono">{formatarCnesOuDoc(unidade.cnes)}</span>
+                        </span>
+                      )}
                       {' · '}
                     </>
                   ) : null}

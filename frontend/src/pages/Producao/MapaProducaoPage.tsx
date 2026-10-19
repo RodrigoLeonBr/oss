@@ -23,15 +23,32 @@ function SelectField(props: {
 }
 
 export default function MapaProducaoPage() {
-  const { get, post, del } = useApi()
-  const { canInsert, canDelete } = usePermission('relatorios')
+  const { get, post, put, del } = useApi()
+  const { canInsert, canUpdate, canDelete } = usePermission('relatorios')
 
   const [unidades, setUnidades] = useState<{ id: string; nome: string }[]>([])
   const [unidadeId, setUnidadeId] = useState('')
   const [indicadores, setIndicadores] = useState<IndicadorOpt[]>([])
   const [lista, setLista] = useState<MapaRecord[]>([])
-  const [form, setForm] = useState<MapaFormData>({ indicadorId: '', fonte: 'sia', tipoFiltro: 'grupo', valorFiltro: '' })
+  const [form, setForm] = useState<MapaFormData>({ indicadorId: '', fonte: 'sia', tipoFiltro: 'grupo', valorFiltro: '', cbo: '' })
+  const [editId, setEditId] = useState<string | null>(null)
   const [erro, setErro] = useState('')
+
+  const EMPTY: MapaFormData = { indicadorId: '', fonte: 'sia', tipoFiltro: 'grupo', valorFiltro: '', cbo: '' }
+
+  const cancelarEdicao = useCallback(() => { setEditId(null); setForm(EMPTY); setErro('') }, [])
+
+  const editar = useCallback((m: MapaRecord) => {
+    setEditId(m.mapa_id)
+    setErro('')
+    setForm({
+      indicadorId: m.indicador_id,
+      fonte: m.fonte,
+      tipoFiltro: m.tipo_filtro,
+      valorFiltro: m.valor_filtro,
+      cbo: m.cbo ?? '',
+    })
+  }, [])
 
   useEffect(() => {
     get<UnidadeRecord[] | { data: UnidadeRecord[] }>('/unidades?ativo=1')
@@ -55,12 +72,24 @@ export default function MapaProducaoPage() {
     if (!/^\d+$/.test(form.valorFiltro) || form.valorFiltro.length !== len) {
       setErro(`Valor deve ter ${len} dígitos para ${form.tipoFiltro}`); return
     }
+    if (form.cbo && !/^\d{4}$|^\d{6}$/.test(form.cbo)) {
+      setErro('CBO deve ter 4 (família) ou 6 (ocupação) dígitos'); return
+    }
     try {
-      await post('/mapa-producao', form)
-      setForm({ ...form, valorFiltro: '' })
+      if (editId) {
+        // indicador não muda na edição (PUT não aceita indicadorId)
+        await put(`/mapa-producao/${editId}`, {
+          fonte: form.fonte, tipoFiltro: form.tipoFiltro, valorFiltro: form.valorFiltro, cbo: form.cbo || null,
+        })
+        setEditId(null)
+        setForm(EMPTY)
+      } else {
+        await post('/mapa-producao', form)
+        setForm({ ...form, valorFiltro: '', cbo: '' })
+      }
       await carregar(unidadeId)
     } catch (e) { setErro(e instanceof Error ? e.message : 'Erro ao salvar') }
-  }, [form, post, carregar, unidadeId])
+  }, [form, editId, post, put, carregar, unidadeId])
 
   const remover = useCallback(async (id: string) => {
     await del(`/mapa-producao/${id}`)
@@ -80,12 +109,17 @@ export default function MapaProducaoPage() {
         {unidades.map(u => <option key={u.id} value={u.id}>{u.nome}</option>)}
       </SelectField>
 
-      {unidadeId && canInsert && (
+      {unidadeId && (canInsert || editId) && (
         <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-border-subtle bg-surface p-4">
-          <SelectField label="Indicador" value={form.indicadorId} onChange={v => setForm({ ...form, indicadorId: v })}>
-            <option value="">Selecione…</option>
-            {indicadores.map(i => <option key={i.id} value={i.id}>{i.nome}</option>)}
-          </SelectField>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-text-secondary">Indicador</span>
+            <select value={form.indicadorId} disabled={!!editId}
+              onChange={e => setForm({ ...form, indicadorId: e.target.value })}
+              className="rounded-xl border border-border-subtle bg-surface px-3 py-2 text-sm disabled:opacity-60">
+              <option value="">Selecione…</option>
+              {indicadores.map(i => <option key={i.id} value={i.id}>{i.nome}</option>)}
+            </select>
+          </label>
           <SelectField label="Fonte" value={form.fonte} onChange={v => setForm({ ...form, fonte: v as FonteProducao })}>
             <option value="sia">SIA (ambulatorial)</option>
             <option value="sih">SIH (internação)</option>
@@ -101,10 +135,23 @@ export default function MapaProducaoPage() {
               maxLength={COMPRIMENTO_FILTRO[form.tipoFiltro]}
               className="rounded-xl border border-border-subtle bg-surface px-3 py-2 text-sm font-mono" />
           </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-text-secondary">CBO (opc., 4 ou 6 díg)</span>
+            <input value={form.cbo} inputMode="numeric"
+              onChange={e => setForm({ ...form, cbo: e.target.value.replace(/\D/g, '').slice(0, 6) })}
+              maxLength={6} placeholder="ex: 2235 ou 223505"
+              className="rounded-xl border border-border-subtle bg-surface px-3 py-2 text-sm font-mono" />
+          </label>
           <button type="button" onClick={salvar} disabled={!form.indicadorId}
             className="rounded-xl bg-primary px-5 py-2 text-sm font-semibold text-white hover:bg-primary-dark disabled:opacity-50">
-            Adicionar
+            {editId ? 'Salvar edição' : 'Adicionar'}
           </button>
+          {editId && (
+            <button type="button" onClick={cancelarEdicao}
+              className="rounded-xl border border-border-subtle px-5 py-2 text-sm font-semibold text-text-secondary hover:bg-hover">
+              Cancelar
+            </button>
+          )}
         </div>
       )}
 
@@ -119,6 +166,7 @@ export default function MapaProducaoPage() {
                 <th className="px-4 py-3 text-left">Fonte</th>
                 <th className="px-4 py-3 text-left">Tipo</th>
                 <th className="px-4 py-3 text-left">Código</th>
+                <th className="px-4 py-3 text-left">CBO</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
@@ -129,16 +177,23 @@ export default function MapaProducaoPage() {
                   <td className="px-4 py-2.5 uppercase">{m.fonte}</td>
                   <td className="px-4 py-2.5">{m.tipo_filtro}</td>
                   <td className="px-4 py-2.5 font-mono">{m.valor_filtro}</td>
+                  <td className="px-4 py-2.5 font-mono">{m.cbo || '—'}</td>
                   <td className="px-4 py-2.5 text-right">
-                    {canDelete && (
-                      <button type="button" onClick={() => remover(m.mapa_id)}
-                        className="rounded-lg px-2 py-1 text-xs text-status-bad hover:bg-status-bad-bg">Remover</button>
-                    )}
+                    <div className="flex justify-end gap-1">
+                      {canUpdate && (
+                        <button type="button" onClick={() => editar(m)}
+                          className="rounded-lg px-2 py-1 text-xs text-primary hover:bg-primary/10">Editar</button>
+                      )}
+                      {canDelete && (
+                        <button type="button" onClick={() => remover(m.mapa_id)}
+                          className="rounded-lg px-2 py-1 text-xs text-status-bad hover:bg-status-bad-bg">Remover</button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
               {lista.length === 0 && (
-                <tr><td colSpan={5} className="px-4 py-8 text-center text-text-muted">Nenhum mapeamento.</td></tr>
+                <tr><td colSpan={6} className="px-4 py-8 text-center text-text-muted">Nenhum mapeamento.</td></tr>
               )}
             </tbody>
           </table>

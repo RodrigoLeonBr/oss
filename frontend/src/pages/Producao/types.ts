@@ -7,6 +7,7 @@ export interface MapaRecord {
   fonte: FonteProducao
   tipo_filtro: TipoFiltro
   valor_filtro: string
+  cbo: string | null
   ativo: number
   indicador?: { nome: string; unidade?: { nome: string } }
 }
@@ -16,6 +17,7 @@ export interface MapaFormData {
   fonte: FonteProducao
   tipoFiltro: TipoFiltro
   valorFiltro: string
+  cbo: string
 }
 
 export interface LinhaComparacao {
@@ -33,6 +35,41 @@ export interface Comparacao {
   competencia: string
   unidade: { id: string; nome: string; cnes: string }
   linhas: LinhaComparacao[]
+}
+
+// ── Confronto por período/escopo (/ponte-producao/periodo) ───────────────────
+export interface LinhaConfronto {
+  indicadorId: string
+  codigo: string
+  nome: string
+  unidadeMedida: string | null
+  informado: number | null
+  registrado: number | null
+  diferenca: number | null
+  divergenciaPerc: number | null
+  semMapeamento: boolean
+}
+export interface Subtotais { informado: number; registrado: number; diferenca: number }
+export interface UnidadeConfronto {
+  unidadeId: string
+  nome: string
+  sigla: string
+  cnes: string | null
+  semCnes: boolean
+  linhas: LinhaConfronto[]
+  subtotais: Subtotais
+}
+export interface ContratoConfronto {
+  contratoId: string
+  numero: string
+  unidades: UnidadeConfronto[]
+}
+export interface ConfrontoPeriodo {
+  periodo: string
+  janela: { inicio: string; fim: string; meses: number; anual: boolean }
+  escopo: string
+  totais: Subtotais
+  contratos: ContratoConfronto[]
 }
 
 export const COMPRIMENTO_FILTRO: Record<TipoFiltro, number> = {
