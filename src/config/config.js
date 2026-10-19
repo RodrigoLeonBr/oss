@@ -34,6 +34,11 @@ const envValidation = Joi.object()
         REDIS_PORT: Joi.number().default(6379),
         REDIS_USE_PASSWORD: Joi.string().default('no'),
         REDIS_PASSWORD: Joi.string().allow(''),
+        DB_PRODUCAO_HOST: Joi.string().default('localhost'),
+        DB_PRODUCAO_PORT: Joi.number().default(3306),
+        DB_PRODUCAO_USER: Joi.string().default('hospital'),
+        DB_PRODUCAO_PASS: Joi.string().allow('').default(''),
+        DB_PRODUCAO_NAME: Joi.string().default('producao'),
     })
     .unknown();
 
@@ -70,5 +75,12 @@ module.exports = {
         port: envVar.REDIS_PORT,
         usePassword: envVar.REDIS_USE_PASSWORD,
         password: envVar.REDIS_PASSWORD,
+    },
+    producaoDb: {
+        host: envVar.DB_PRODUCAO_HOST,
+        port: envVar.DB_PRODUCAO_PORT,
+        user: envVar.DB_PRODUCAO_USER,
+        pass: envVar.DB_PRODUCAO_PASS,
+        name: envVar.DB_PRODUCAO_NAME,
     },
 };
