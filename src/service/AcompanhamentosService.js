@@ -9,7 +9,33 @@ const {
 } = require('../helper/ossScopeHelper');
 const { fatorLinhaMaiorIgual, cumprimentoGlobalPonderado } = require('../helper/metaCumprimentoPonderado');
 const { baseMetaReferencia, absFromPercentualBase } = require('../helper/metaValoresAlvo');
+const { nivelCumprimento, faixasEfetivas, DEFAULT_FAIXAS } = require('../helper/avaliacaoCumprimento');
 const db = require('../models');
+
+// Conjunto de exibição (persistido na coluna, lido por Aprovação/CMS) a partir do realizado+base.
+function statusExibicao(meta, base, realizado) {
+  const b = base != null ? parseFloat(base) : null;
+  const r = realizado != null ? parseFloat(realizado) : null;
+  const pct = (b && b > 0 && r != null) ? parseFloat(((r / b) * 100).toFixed(4)) : null;
+  return nivelCumprimento(pct, faixasEfetivas(meta));
+}
+
+/** Limites absolutos com defaults por direção (maior: 100/85 · menor: 100/115) quando a meta não define. */
+function limitesComDefault(metaTipo, base, metaMinimaAbs, metaParcialAbs) {
+  let mm = metaMinimaAbs;
+  let mp = metaParcialAbs;
+  if (base == null) return { metaMinima: mm, metaParcial: mp };
+  const b = parseFloat(base);
+  // Defaults absolutos derivados dos percentuais da fonte única (evita magic numbers duplicados).
+  if (metaTipo === 'menor_igual') {
+    if (mm == null) mm = b * (DEFAULT_FAIXAS.menor_igual.cumprido / 100); // <= 100%
+    if (mp == null) mp = b * (DEFAULT_FAIXAS.menor_igual.parcial / 100);  // <= 115%
+  } else {
+    if (mp == null) mp = b * (DEFAULT_FAIXAS.maior_igual.cumprido / 100); // >= 100%
+    if (mm == null) mm = b * (DEFAULT_FAIXAS.maior_igual.parcial / 100);  // >= 85%
+  }
+  return { metaMinima: mm, metaParcial: mp };
+}
 
 /** Snapshots de acompanhamento: absolutos. Em tb_metas, mín/parcial são % sobre a referência. */
 function limitesAbsolutosDaMeta(meta) {
@@ -30,14 +56,13 @@ function calcularStatus(metaTipo, valorRealizado, metaParcial, metaMinima) {
   const v = parseFloat(valorRealizado);
   const p = parseFloat(metaParcial);
   const m = parseFloat(metaMinima);
-  if (metaTipo === 'maior_igual') {
-    if (v >= p) return 'atingido';
-    if (v >= m) return 'parcial';
-    return 'nao_atingido';
-  }
-  if (v <= m) return 'atingido';
-  if (v <= p) return 'parcial';
-  return 'nao_atingido';
+  // Faixas absolutas (não %): delega direção/comparação à fonte única (nivelCumprimento).
+  // maior: cumprido=p(teto), parcial=m(piso) · menor: cumprido=m(teto), parcial=p(folga).
+  const faixas = metaTipo === 'menor_igual'
+    ? { tipo: 'menor_igual', cumprido: m, parcial: p }
+    : { tipo: 'maior_igual', cumprido: p, parcial: m };
+  const mapa = { cumprido: 'atingido', parcial: 'parcial', nao_cumprido: 'nao_atingido' };
+  return mapa[nivelCumprimento(v, faixas)] || 'nao_atingido';
 }
 
 function isMetaFolha(papel) {
@@ -148,10 +173,13 @@ function toRecord(indicador, meta, acomp, extras = {}) {
   const metaTipo = acomp?.meta_tipo_snap ?? meta?.meta_tipo ?? 'maior_igual';
   const valorRealizado = acomp?.valor_realizado != null ? parseFloat(acomp.valor_realizado) : null;
   const absMeta = meta ? limitesAbsolutosDaMeta(meta) : { metaMinima: null, metaParcial: null };
-  const metaMinima = acomp?.meta_minima != null ? parseFloat(acomp.meta_minima) : absMeta.metaMinima;
-  const metaParcial = acomp?.meta_parcial != null ? parseFloat(acomp.meta_parcial) : absMeta.metaParcial;
+  const metaMinimaSnap = acomp?.meta_minima != null ? parseFloat(acomp.meta_minima) : absMeta.metaMinima;
+  const metaParcialSnap = acomp?.meta_parcial != null ? parseFloat(acomp.meta_parcial) : absMeta.metaParcial;
   const metaVigenteMensal = acomp?.meta_vigente_mensal != null ? parseFloat(acomp.meta_vigente_mensal) : (meta?.meta_mensal != null ? parseFloat(meta.meta_mensal) : null);
   const metaVigenteQualit = acomp?.meta_vigente_qualit != null ? parseFloat(acomp.meta_vigente_qualit) : (meta?.meta_valor_qualit != null ? parseFloat(meta.meta_valor_qualit) : null);
+  // Faixas efetivas com defaults por direção (base = mensal p/ produção, qualit p/ qualidade)
+  const baseRef = indicador.tipo === 'qualitativo' ? metaVigenteQualit : metaVigenteMensal;
+  const { metaMinima, metaParcial } = limitesComDefault(metaTipo, baseRef, metaMinimaSnap, metaParcialSnap);
 
   return {
     id: acomp?.acomp_id ?? null,
@@ -335,7 +363,7 @@ const criar = async (payload, ossIdFiltro = null) => {
   const metaVigenteMensal = meta?.meta_mensal != null ? parseFloat(meta.meta_mensal) : null;
   const metaVigenteQualit = meta?.meta_valor_qualit != null ? parseFloat(meta.meta_valor_qualit) : null;
   const v = parseFloat(valorRealizado);
-  const statusCumprimento = calcularStatus(metaTipo, v, metaParcial, metaMinima);
+  const baseRef = metaVigenteMensal != null ? metaVigenteMensal : metaVigenteQualit;
 
   const novo = await db.acompanhamento_mensal.create({
     indicador_id: indicadorId,
@@ -347,7 +375,8 @@ const criar = async (payload, ossIdFiltro = null) => {
     meta_parcial: metaParcial,
     meta_tipo_snap: metaTipo,
     valor_realizado: v,
-    status_cumprimento: statusCumprimento,
+    // Coluna canônica = conjunto de exibição (Aprovação/CMS/descontos)
+    status_cumprimento: statusExibicao(meta, baseRef, v),
     status_aprovacao: 'submetido',
     descricao_desvios: descricaoDesvios ?? null,
   });
@@ -375,16 +404,17 @@ const atualizar = async (id, payload, ossIdFiltro = null) => {
   const meta = acomp.meta
     || (acomp.indicador?.metas || []).find((m) => m.meta_id === acomp.meta_id);
 
-  const metaTipo = acomp.meta_tipo_snap ?? 'maior_igual';
-  const metaMinima = acomp.meta_minima != null ? parseFloat(acomp.meta_minima) : null;
-  const metaParcial = acomp.meta_parcial != null ? parseFloat(acomp.meta_parcial) : null;
+  const metaTipo = acomp.meta_tipo_snap ?? meta?.meta_tipo ?? 'maior_igual';
   const metaVigenteMensal = acomp.meta_vigente_mensal != null ? parseFloat(acomp.meta_vigente_mensal) : null;
+  const metaVigenteQualit = acomp.meta_vigente_qualit != null ? parseFloat(acomp.meta_vigente_qualit) : null;
+  const baseRef = metaVigenteMensal != null ? metaVigenteMensal : metaVigenteQualit;
   const v = parseFloat(payload.valorRealizado);
-  const statusCumprimento = calcularStatus(metaTipo, v, metaParcial, metaMinima);
+  // Avalia pela config atual da meta (faixas em %); fallback só direção se meta ausente
+  const metaParaFaixa = meta || { meta_tipo: metaTipo };
 
   await acomp.update({
     valor_realizado: v,
-    status_cumprimento: statusCumprimento,
+    status_cumprimento: statusExibicao(metaParaFaixa, baseRef, v),
     descricao_desvios: payload.descricaoDesvios ?? acomp.descricao_desvios,
   });
 

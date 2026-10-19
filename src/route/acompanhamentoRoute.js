@@ -33,10 +33,19 @@ router.put(
     controller.rejeitar,
 );
 
+router.put(
+    '/:id/revogar',
+    auth(),
+    checkPermission('aprovacao', 'update'),
+    auditar('tb_acompanhamento_mensal', 'UPDATE'),
+    controller.revogar,
+);
+
 router.post(
     '/calcular-descontos',
     auth(),
     checkPermission('entrada_mensal', 'update'),
+    auditar('tb_descontos_bloco', 'UPDATE'),
     controller.calcularDescontos,
 );
 

@@ -1,5 +1,6 @@
 const httpStatus = require('http-status');
 const PermissaoService = require('../service/PermissaoService');
+const ApiError = require('../helper/ApiError');
 const logger = require('../config/logger');
 
 class PermissaoController {
@@ -7,26 +8,26 @@ class PermissaoController {
     this.permissaoService = new PermissaoService();
   }
 
-  getByPerfil = async (req, res) => {
+  getByPerfil = async (req, res, next) => {
     try {
       const rows = await this.permissaoService.getPermissoesByPerfil(req.params.perfil);
       res.status(httpStatus.OK).json({ status: true, data: rows });
     } catch (e) {
       logger.error(e);
-      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ status: false, message: e.message });
+      return next(e);
     }
   };
 
-  updateBatch = async (req, res) => {
+  updateBatch = async (req, res, next) => {
     try {
       if (!Array.isArray(req.body.permissoes)) {
-        return res.status(httpStatus.BAD_REQUEST).json({ status: false, message: 'permissoes deve ser um array.' });
+        return next(new ApiError(httpStatus.BAD_REQUEST, 'permissoes deve ser um array.'));
       }
       await this.permissaoService.upsertPermissoesBatch(req.params.perfil, req.body.permissoes);
       res.status(httpStatus.OK).json({ status: true, message: 'Permissões atualizadas.' });
     } catch (e) {
       logger.error(e);
-      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ status: false, message: e.message });
+      return next(e);
     }
   };
 }

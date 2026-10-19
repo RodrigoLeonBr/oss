@@ -30,7 +30,7 @@ Automatiza o ciclo mensal de coleta de indicadores, cálculo de descontos por de
 |---|---|
 | **Backend** | Node.js 22 + Express 4 |
 | **ORM** | Sequelize 6 + MySQL 8 |
-| **Frontend** | React 18 + TypeScript + Vite 8 (Rolldown) |
+| **Frontend** | React 19 + TypeScript + Vite 8 (Rolldown) |
 | **Estilização** | Tailwind CSS com design tokens CSS customizados |
 | **Autenticação** | Passport.js + JWT (`tb_usuarios` / `senha_hash`) |
 | **Cache** | Redis |
@@ -38,7 +38,7 @@ Automatiza o ciclo mensal de coleta de indicadores, cálculo de descontos por de
 | **Agendamento** | node-cron |
 | **Validação** | Joi |
 | **Logging** | Winston + daily-rotate-file |
-| **Testes** | Jest |
+| **Testes** | Mocha + Chai + Sinon |
 | **Deploy** | Docker / PM2 |
 
 ---
@@ -69,19 +69,22 @@ cp .env.example .env
 # mysql -u root -p
 # CREATE DATABASE oss CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
-# 5. Executar migrações (cria as 27+ tabelas)
+# 5. Executar migrações (36 migrações Sequelize)
 npm run db:migrate
 
-# 6. Popular dados iniciais
-# (2 OSS, 3 contratos, 5 unidades, 28 indicadores, metas 2026, usuário admin)
+# 6. Popular dados iniciais (ver src/db/seeders/)
+# Perfis + permissões, OSS, contratos, unidades, blocos de produção,
+# indicadores e metas 2026 — dados reais de Americana/SP + usuário admin.
 npm run db:seed
 
 # 7. Criar credenciais de auto-login DEV (não commitar)
 cat > frontend/.env.development << EOF
-VITE_DEV_EMAIL=admin@americana.sp.gov.br
-VITE_DEV_PASSWORD=Oss@2026
+VITE_DEV_EMAIL=<email-do-admin-de-dev>
+VITE_DEV_PASSWORD=<defina-uma-senha-dev>
 VITE_API_URL=http://localhost:4001
 EOF
+# Use as credenciais que você definiu no seed/seu banco local.
+# NUNCA comite credenciais reais; gere uma senha por máquina.
 
 # 8. Iniciar o backend
 npm start
@@ -98,45 +101,57 @@ cd frontend && npm run dev
 
 ## Configuração com Docker
 
-A imagem aplica o **build do frontend (Vite)** e o **Express** na mesma API: em produção o site estático fica em `frontend/dist` e a API em `/api` (veja `src/app.js` e `Dockerfile` multi-stage).
+### Modo desenvolvimento (padrão): Vite + API separados
 
-**1. Pré-requisito:** [Docker](https://docs.docker.com/get-docker/) com plugin Compose (comando `docker compose`).
+O `docker-compose.yml` sobe **Redis**, o **backend** em `NODE_ENV=development` (porta **4001**) e o **Vite** (porta **4000**). O navegador deve usar **http://localhost:4000**; o proxy do Vite encaminha `/api` para o serviço `api`.
+
+**1. Pré-requisito:** [Docker](https://docs.docker.com/get-docker/) com Compose.
 
 **2. Variáveis (obrigatório: `JWT_SECRET`):**
 
 ```bash
 cp env.docker.example .env
-# Edite e defina JWT_SECRET; ajuste DB_PASS / DB_NAME se necessário
+# Edite JWT_SECRET e credenciais do MySQL no host
 ```
 
-O compose usa o arquivo `.env` na raiz para expandir `JWT_SECRET`, `DB_USER`, `DB_PASS`, etc. No container, o backend enxerga o MySQL no host `db` e o Redis no host `redis` (porta MySQL **3306** no rede interna — use `DB_PORT=3306`).
-
-**3. Compilar a imagem e subir os serviços:**
+**3. Build e subida:**
 
 ```bash
-docker compose build --no-cache
+docker compose build
 docker compose up -d
 ```
 
-**4. Criar tabelas e dados iniciais (após o `app` estar saudável):**
+Atalhos: `npm run docker:build`, `npm run docker:up`.
+
+**4. Migrações / seed** (com o serviço `api` saudável):
 
 ```bash
-docker compose exec app npm run db:migrate
-docker compose exec app npm run db:seed
+docker compose exec api npm run db:migrate
+docker compose exec api npm run db:seed
 ```
 
-**5. Acessar a aplicação:** `http://localhost:4001` (porta padrão do `PORT` no `docker-compose`).
+**5. URLs:** app **http://localhost:4000** · API direta (opcional) **http://localhost:4001** · Portas ajustáveis via `WEB_PORT` e `API_PORT` no `.env`.
 
 | Comando | Descrição |
 |--------|------------|
-| `docker compose build` | Rebuilda a imagem (frontend + API) |
-| `docker compose up -d` | Sobe `db`, `redis` e `app` em segundo plano |
-| `docker compose ps` | Estado dos contêineres |
-| `docker compose logs -f app` | Logs do backend + requests |
-| `docker compose down` | Para e remove contêineres (mantém volumes do MySQL/Redis) |
-| `npm run docker:up` (na raiz) | Atalho: `up -d` via `package.json` |
+| `docker compose build` | Imagens `api` + `web` (+ Redis usa imagem oficial) |
+| `docker compose up -d` | Sobe `redis`, `api`, `web` |
+| `docker compose logs -f api web` | Logs backend e Vite |
+| `npm run docker:prod:up` | Stack **produção** (uma imagem, porta 4001) — ver abaixo |
 
-> Scripts `npm` na raiz: `docker:build`, `docker:up`, `docker:down`, `docker:logs`, `docker:migrate`, `docker:seed` — atalhos para `docker compose` + `exec`.
+### Modo produção: uma imagem (API + estático)
+
+Build multi-stage no `Dockerfile`: gera `frontend/dist` e o Express serve a SPA e `/api` na **mesma porta** (padrão **4001**).
+
+```bash
+docker compose -f docker-compose.prod.yml build
+docker compose -f docker-compose.prod.yml up -d
+# ou: npm run docker:prod:build && npm run docker:prod:up
+```
+
+Acesse **http://localhost:4001**. Migrações: `npm run docker:prod:migrate` / `docker:prod:seed`.
+
+> O compose usa o `.env` na raiz. MySQL no host: `DOCKER_DB_HOST` (padrão `host.docker.internal`). Detalhes em `env.docker.example`.
 
 ---
 
@@ -176,10 +191,12 @@ REDIS_PASSWORD=
 **Frontend DEV** (`frontend/.env.development` — não commitar):
 
 ```dotenv
-VITE_DEV_EMAIL=admin@americana.sp.gov.br
-VITE_DEV_PASSWORD=Oss@2026
+VITE_DEV_EMAIL=<email-do-admin-de-dev>
+VITE_DEV_PASSWORD=<defina-uma-senha-dev>
 VITE_API_URL=http://localhost:4001
 ```
+
+> **Segurança:** não use senhas padrão/conhecidas. O seed deve gerar a senha do admin por ambiente (ex.: via variável de ambiente) e nunca versioná-la. Troque qualquer credencial que já tenha sido comitada.
 
 ---
 
@@ -189,7 +206,7 @@ VITE_API_URL=http://localhost:4001
 
 ```bash
 npm start                   # Servidor Express (porta 4001)
-npm test                    # Testes Jest
+npm test                    # Testes Mocha (--watch; use `npx mocha <arquivo> --exit` p/ um só)
 npm run db:migrate          # Aplica migrações pendentes
 npm run db:migrate:undo     # Desfaz última migração
 npm run db:seed             # Popula dados iniciais
@@ -229,14 +246,18 @@ Base URL: `http://localhost:4001/api`
 | Método | Rota | Descrição | Acesso |
 |---|---|---|---|
 | `POST` | `/auth/login` | Login — retorna access + refresh token | Público |
-| `POST` | `/auth/register` | Cadastro de usuário | Público |
-| `POST` | `/auth/refresh-tokens` | Renova access token | Público |
-| `POST` | `/auth/logout` | Encerra sessão (invalida token) | Autenticado |
+| `POST` | `/auth/register` | Cadastro de usuário | `usuarios:insert` (admin) |
+| `POST` | `/auth/email-exists` | Verifica se e-mail já existe | ⚠️ Público — ver nota |
+| `POST` | `/auth/refresh-token` | Renova access token | Público |
+| `POST` | `/auth/logout` | Encerra sessão (invalida token) | Público |
 | `PUT` | `/auth/change-password` | Altera senha | Autenticado |
+| `GET` | `/auth/me/permissions` | Permissões do usuário logado | Autenticado |
+
+> **`POST /auth/register` é gateado por admin** (`auth()` + `checkPermission('usuarios', 'insert')` + `auditar`), equivalente a `POST /api/usuarios`. ⚠️ **`POST /auth/email-exists` segue público** e permite enumeração de e-mails — sob LGPD, considere gateá-lo ou removê-lo se o fluxo de cadastro não depender mais dele.
 
 **Body de login:**
 ```json
-{ "email": "admin@americana.sp.gov.br", "password": "Oss@2026" }
+{ "email": "<email-do-usuario>", "password": "<senha>" }
 ```
 
 **Resposta:**
@@ -247,14 +268,30 @@ Base URL: `http://localhost:4001/api`
 }
 ```
 
-### Acompanhamentos / Entrada Mensal (`/api/acompanhamentos`)
+### Acompanhamentos / Entrada Mensal
 
-| Método | Rota | Descrição | Perfis |
+Existem **dois** módulos montados em `src/route/index.js` (autorização via `checkPermission`, módulos `entrada_mensal` e `aprovacao`):
+
+**`/api/acompanhamentos`** — CRUD de entrada mensal (`acompanhamentosRoute.js`)
+
+| Método | Rota | Descrição | Permissão |
 |---|---|---|---|
-| `GET` | `/?unidadeId=&mesReferencia=YYYY-MM-01` | Lista acompanhamentos | Todos |
-| `POST` | `/` | Registra valor realizado | Gestor_SMS, Admin |
-| `PUT` | `/:id` | Atualiza acompanhamento | Gestor_SMS, Admin |
-| `DELETE` | `/:id` | Remove acompanhamento | Admin |
+| `GET` | `/` | Lista acompanhamentos | `entrada_mensal:view` |
+| `GET` | `/:id` | Detalhe | `entrada_mensal:view` |
+| `POST` | `/` | Registra valor realizado | `entrada_mensal:insert` |
+| `PUT` | `/:id` | Atualiza acompanhamento | `entrada_mensal:update` |
+
+**`/api/acompanhamento-mensal`** — ciclo de aprovação + cálculo (`acompanhamentoRoute.js`)
+
+| Método | Rota | Descrição | Permissão |
+|---|---|---|---|
+| `GET` | `/` | Lista acompanhamentos | `entrada_mensal:view` |
+| `POST` | `/` | Registra valor realizado | `entrada_mensal:insert` |
+| `PUT` | `/:id/aprovar` | Aprova | `aprovacao:update` |
+| `PUT` | `/:id/rejeitar` | Rejeita | `aprovacao:update` |
+| `PUT` | `/:id/revogar` | Revoga aprovação | `aprovacao:update` |
+| `POST` | `/calcular-descontos` | Recalcula descontos | `entrada_mensal:update` |
+| `GET` | `/repasse` | Repasse com descontos | `relatorios:view` |
 
 ### Metas (`/api/metas`)
 
@@ -318,17 +355,24 @@ Base URL: `http://localhost:4001/api`
 
 ## Controle de Acesso (RBAC)
 
-O sistema possui 5 perfis de usuário:
+O sistema possui 8 perfis (`PERFIS` em `src/middlewares/rbac.js`):
 
 | Perfil | Descrição |
 |---|---|
 | `admin` | Acesso total ao sistema |
 | `gestor_sms` | Gestão de contratos e indicadores da SMS |
 | `auditora` | Aprovação e auditoria de acompanhamentos |
-| `cms` | Visualização para o Conselho Municipal de Saúde |
-| `contratada` | Entrada de dados pela OSS contratada |
+| `conselheiro_cms` | Visualização para o Conselho Municipal de Saúde |
+| `contratada_scmc` | Entrada de dados pela OSS contratada (SCMC) |
+| `contratada_indsh` | Entrada de dados pela OSS contratada (INDSH) |
+| `central_regulacao` | Central de regulação |
+| `visualizador` | Somente leitura |
 
-O backend usa `authorize([...perfis])` middleware e o frontend usa `ProtectedRoute` com `allowedPerfis`.
+**Autorização é data-driven.** O middleware usado nas rotas é `checkPermission(modulo, action)`, que consulta a tabela `tb_permissoes_perfil` pela coluna `can_<action>` (`view`/`insert`/`update`/`delete`) e guarda a linha em `req.permissaoAtual`. O `authorize([...perfis])` é **legado** e não deve ser usado em rotas novas.
+
+Quando a permissão do módulo tem `escopo = 'proprio'` (perfis contratada), o backend restringe os dados à OSS do usuário via `getOssIdSeEscopoProprio(req)` + helpers `assert*NoEscopoOSS` (`src/helper/ossScopeHelper.js`), que lançam **404** em acesso cruzado. Escritas passam por `auditar(tabela, acao)` (log LGPD). O frontend usa `ProtectedRoute` com `allowedPerfis`.
+
+> As colunas "Perfis/Permissão" nas tabelas de endpoint acima são indicativas; a autorização efetiva é a configurada em `tb_permissoes_perfil` (seed `seed-permissoes-defaults`).
 
 ---
 
@@ -343,11 +387,11 @@ oss/
 │   ├── controllers/         # Auth, Acompanhamentos, Meta, Indicador, Oss, Unidade, Contrato
 │   ├── dao/                 # Data Access Objects — SuperDao base + especializados
 │   ├── db/
-│   │   ├── migrations/      # 27+ migrações Sequelize
+│   │   ├── migrations/      # 36 migrações Sequelize
 │   │   └── seeders/         # Dados iniciais reais de Americana/SP
 │   ├── helper/              # ApiError, EmailHelper, RedisHelper, responseHandler
 │   ├── middlewares/         # auth() JWT, authorize() RBAC, auditoria LGPD
-│   ├── models/              # 22 modelos Sequelize (Usuario, Oss, Contrato, Indicador...)
+│   ├── models/              # modelos Sequelize (Usuario, Oss, Contrato, Indicador...)
 │   ├── route/               # Rotas Express
 │   ├── service/             # AuthService, TokenService, AcompanhamentosService, MetaService...
 │   ├── validator/           # Schemas Joi (Acompanhamentos, Meta, Indicador)
@@ -368,7 +412,7 @@ oss/
 │       ├── types/           # 12 interfaces TypeScript do domínio
 │       └── data/            # Mock data (fallback DEV em catches de API)
 ├── docs/                    # PRD_v2, ARQUITETURA_v2, banco_v2, erd_v2
-├── specs/                   # Testes Jest (acompanhamentos, metas) + specs OpenAPI
+├── specs/                   # Testes Mocha (acompanhamentos, metas) + specs OpenAPI
 ├── Dockerfile
 ├── docker-compose.yml
 ├── ecosystem.config.js      # PM2 config
@@ -380,9 +424,11 @@ oss/
 ## Banco de Dados
 
 O banco utiliza MySQL 8+ com as seguintes convenções:
-- UUIDs como PKs (`DEFAULT (UUID())`)
-- Soft-delete (campo `ativo`)
+- UUIDs como PKs (`DEFAULT (UUID())`), com nomes próprios (`contrato_id`, `acomp_id`, `meta_id`) — não `id` genérico
+- Soft-delete (campo `ativo` / `paranoid: true`)
 - Tabelas de histórico imutáveis (append-only)
+
+> No registro de models (`src/models/index.js`) as chaves ficam em **snake_case singular** (`db.contrato`, `db.acompanhamento_mensal`, `db.desconto_bloco`), embora os arquivos sejam PascalCase. Há um `User.js` legado (boilerplate) além do `Usuario.js` real do domínio.
 
 **Principais entidades:**
 
@@ -433,20 +479,20 @@ pm2 startup       # Configura auto-start no boot
 ## Testes
 
 ```bash
-# Todos os testes (Jest)
+# Todos os testes (Mocha + Chai + Sinon) — o script já roda em --watch
 npm test
 
-# Watch mode
-npm test -- --watch
-
-# Cobertura
-npm test -- --coverage
+# Um único arquivo (sem watch)
+npx mocha specs/metas/<arquivo>.spec.js --exit
 
 # TypeScript check (frontend — zero erros obrigatório)
 cd frontend && npx tsc --noEmit
+
+# Self-check da regra de cumprimento
+node src/helper/avaliacaoCumprimento.js
 ```
 
-Os testes ficam em `specs/` organizados por feature (`*.spec.js`).
+Os testes ficam em `specs/` organizados por feature (`*.spec.js`). **Não há Jest** neste projeto; `--coverage` não está configurado.
 
 ---
 

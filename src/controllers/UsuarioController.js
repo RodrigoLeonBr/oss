@@ -9,27 +9,27 @@ class UsuarioController {
     this.usuarioService = new UsuarioService();
   }
 
-  list = async (req, res) => {
+  list = async (req, res, next) => {
     try {
       const rows = await this.usuarioService.listUsuarios(getCallerPerfil(req.user));
       res.status(httpStatus.OK).json({ status: true, data: rows });
     } catch (e) {
       logger.error(e);
-      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ status: false, message: e.message });
+      return next(e);
     }
   };
 
-  create = async (req, res) => {
+  create = async (req, res, next) => {
     try {
       const result = await this.usuarioService.createUsuario(req.body, getCallerPerfil(req.user));
       res.status(result.statusCode).json(result.response);
     } catch (e) {
       logger.error(e);
-      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ status: false, message: e.message });
+      return next(e);
     }
   };
 
-  update = async (req, res) => {
+  update = async (req, res, next) => {
     try {
       const result = await this.usuarioService.updateUsuario(
         req.params.id, req.body, getCallerPerfil(req.user),
@@ -37,17 +37,17 @@ class UsuarioController {
       res.status(result.statusCode).json(result.response);
     } catch (e) {
       logger.error(e);
-      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ status: false, message: e.message });
+      return next(e);
     }
   };
 
-  deactivate = async (req, res) => {
+  deactivate = async (req, res, next) => {
     try {
       const result = await this.usuarioService.deactivateUsuario(req.params.id);
       res.status(result.statusCode).json(result.response);
     } catch (e) {
       logger.error(e);
-      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ status: false, message: e.message });
+      return next(e);
     }
   };
 }

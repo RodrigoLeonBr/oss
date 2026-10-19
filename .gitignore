@@ -28,6 +28,13 @@ yarn.lock
 
 .idea
 
+# memória pessoal / permissões locais (não versionar)
+CLAUDE.local.md
+.claude/settings.local.json
+
+# credenciais geradas pelo seed (senhas em claro) — NÃO versionar
+seed-credenciais.local.json
+
 # dotcontext runtime state
 .context/plans/
 .context/cache/semantic/
@@ -42,3 +49,8 @@ yarn.lock
 .context/**/archive/
 
 .worktrees/
+
+# Prestação de contas OS — dados sensíveis (SMS). NÃO versionar.
+/2025/
+/2026/
+/prestacao-vault/

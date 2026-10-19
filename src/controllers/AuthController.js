@@ -3,6 +3,7 @@ const AuthService = require('../service/AuthService');
 const TokenService = require('../service/TokenService');
 const UserService = require('../service/UserService');
 const logger = require('../config/logger');
+const ApiError = require('../helper/ApiError');
 const { tokenTypes } = require('../config/tokens');
 
 class AuthController {
@@ -12,7 +13,7 @@ class AuthController {
         this.authService = new AuthService();
     }
 
-    register = async (req, res) => {
+    register = async (req, res, next) => {
         try {
             const user = await this.userService.createUser(req.body);
             let tokens = {};
@@ -25,21 +26,21 @@ class AuthController {
             res.status(user.statusCode).send({ status, message, data, tokens });
         } catch (e) {
             logger.error(e);
-            res.status(httpStatus.BAD_GATEWAY).send(e);
+            return next(e);
         }
     };
 
-    checkEmail = async (req, res) => {
+    checkEmail = async (req, res, next) => {
         try {
             const isExists = await this.userService.isEmailExists(req.body.email.toLowerCase());
             res.status(isExists.statusCode).send(isExists.response);
         } catch (e) {
             logger.error(e);
-            res.status(httpStatus.BAD_GATEWAY).send(e);
+            return next(e);
         }
     };
 
-    login = async (req, res) => {
+    login = async (req, res, next) => {
         try {
             const { email, password } = req.body;
             const user = await this.authService.loginWithEmailPassword(
@@ -51,13 +52,20 @@ class AuthController {
             const { status } = user.response;
             const code = user.statusCode;
             let tokens = {};
+            let permissions = [];
             if (user.response.status) {
                 tokens = await this.tokenService.generateAuthTokens(data);
+                const models = require('../models');
+                const rows = await models.permissaoPerfil.findAll({
+                    where: { perfil: data.perfil },
+                    order: [['modulo', 'ASC']],
+                });
+                permissions = rows.map((r) => r.get({ plain: true }));
             }
-            res.status(user.statusCode).send({ status, code, message, data, tokens });
+            res.status(user.statusCode).send({ status, code, message, data, tokens, permissions });
         } catch (e) {
             logger.error(e);
-            res.status(httpStatus.BAD_GATEWAY).send(e);
+            return next(e);
         }
     };
 
@@ -66,7 +74,7 @@ class AuthController {
         res.status(httpStatus.NO_CONTENT).send();
     };
 
-    refreshTokens = async (req, res) => {
+    refreshTokens = async (req, res, next) => {
         try {
             const refreshTokenDoc = await this.tokenService.verifyToken(
                 req.body.refresh_token,
@@ -77,29 +85,28 @@ class AuthController {
                 where: { usuario_id: refreshTokenDoc.user_uuid, ativo: 1 },
             });
             if (user == null) {
-                res.status(httpStatus.BAD_GATEWAY).send('User Not Found!');
-                return;
+                return next(new ApiError(httpStatus.UNAUTHORIZED, 'Usuário não encontrado'));
             }
             await this.tokenService.removeTokenById(refreshTokenDoc.id);
             const tokens = await this.tokenService.generateAuthTokens(user);
             res.send(tokens);
         } catch (e) {
             logger.error(e);
-            res.status(httpStatus.BAD_GATEWAY).send(e);
+            return next(e);
         }
     };
 
-    changePassword = async (req, res) => {
+    changePassword = async (req, res, next) => {
         try {
             const responseData = await this.userService.changePassword(req.body, req.user.uuid);
             res.status(responseData.statusCode).send(responseData.response);
         } catch (e) {
             logger.error(e);
-            res.status(httpStatus.BAD_GATEWAY).send(e);
+            return next(e);
         }
     };
 
-    mePermissions = async (req, res) => {
+    mePermissions = async (req, res, next) => {
         try {
             const models = require('../models');
             const perfil = req.user.perfil || req.user.dataValues?.perfil;
@@ -110,7 +117,7 @@ class AuthController {
             res.status(httpStatus.OK).json({ status: true, data: rows });
         } catch (e) {
             logger.error(e);
-            res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ status: false, message: e.message });
+            return next(e);
         }
     };
 }
