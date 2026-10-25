@@ -32,7 +32,8 @@
       "Read(//e/xampp/mysql/bin/**)",
       "Bash(E:/xampp/mysql/bin/mysqladmin.exe -u root ping)",
       "Bash(node src/helper/filtroProducao.js)",
-      "Bash(node src/helper/periodoRelatorio.js)"
+      "Bash(node src/helper/periodoRelatorio.js)",
+      "PowerShell(docker exec app-db *)"
     ]
   },
   "enabledPlugins": {

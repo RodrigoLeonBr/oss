@@ -30,6 +30,9 @@ services:
         condition: service_healthy
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    networks:
+      - default
+      - appdb
     environment:
       NODE_ENV: development
       PORT: ${API_PORT:-4001}
@@ -78,6 +81,12 @@ services:
       API_PROXY_TARGET: http://api:${API_PORT:-4001}
     ports:
       - "${WEB_PORT:-4000}:4000"
+
+networks:
+  # rede externa onde roda o container mysql "app-db" (mariadb)
+  appdb:
+    external: true
+    name: docker_default
 
 volumes:
   redis_data:
