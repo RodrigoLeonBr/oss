@@ -1,0 +1,77 @@
+# Deploy em servidor fraco: usa imagens prontas, NÃO compila.
+# Topologia igual ao dev: redis + api (Node, 4001 interno) + web (nginx, :4000).
+# Acesse o app em http://SERVIDOR:4000 — o nginx encaminha /api para a api.
+# MySQL no host do servidor: configure DOCKER_DB_HOST e credenciais no .env.
+#
+# 1. No dev:    pwsh scripts/docker-save.ps1   -> gera oss-deploy.tar (api+web+redis)
+# 2. Copie:     oss-deploy.tar + este arquivo + .env  para o servidor
+# 3. No server: sh scripts/deploy-load.sh      -> docker load + up + migrate
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: oss_redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  api:
+    image: oss-api:latest
+    container_name: oss_api
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: ${PORT:-4001}
+      DB_HOST: ${DOCKER_DB_HOST:-host.docker.internal}
+      DB_PORT: ${DB_PORT:-3306}
+      DB_USER: ${DB_USER:-root}
+      DB_PASS: ${DB_PASS:-}
+      DB_NAME: ${DB_NAME:-oss}
+      # Banco producao (consultaprod, SIA/SIH) — read-only, modulo Ponte de Producao
+      DB_PRODUCAO_HOST: ${DB_PRODUCAO_HOST:-host.docker.internal}
+      DB_PRODUCAO_PORT: ${DB_PRODUCAO_PORT:-3306}
+      DB_PRODUCAO_USER: ${DB_PRODUCAO_USER:-hospital}
+      DB_PRODUCAO_PASS: ${DB_PRODUCAO_PASS:-}
+      DB_PRODUCAO_NAME: ${DB_PRODUCAO_NAME:-producao}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      JWT_ACCESS_EXPIRATION_MINUTES: ${JWT_ACCESS_EXPIRATION_MINUTES:-60}
+      JWT_REFRESH_EXPIRATION_DAYS: ${JWT_REFRESH_EXPIRATION_DAYS:-30}
+      LOG_FOLDER: logs/
+      LOG_FILE: "%DATE%-app-log.log"
+      LOG_LEVEL: ${LOG_LEVEL:-error}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_USE_PASSWORD: ${REDIS_USE_PASSWORD:-no}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+    volumes:
+      - app_logs:/usr/src/app/logs
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:$$PORT/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  web:
+    image: oss-web:latest
+    container_name: oss_web
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "${WEB_PORT:-4000}:4000"
+
+volumes:
+  redis_data:
+  app_logs:

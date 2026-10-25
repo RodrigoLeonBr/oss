@@ -1,6 +1,8 @@
 const httpStatus = require('http-status');
 const IndicadorService = require('../service/IndicadorService');
-const { criarIndicador, atualizarIndicador, listarIndicadores } = require('../validator/IndicadorValidator');
+const {
+    criarIndicador, atualizarIndicador, listarIndicadores, duplicarIndicadores,
+} = require('../validator/IndicadorValidator');
 const ApiError = require('../helper/ApiError');
 const { getOssIdSeEscopoProprio } = require('../helper/ossScopeHelper');
 const logger = require('../config/logger');
@@ -57,6 +59,25 @@ class IndicadorController {
                 status: true,
                 message: 'Indicador atualizado com sucesso',
                 data: indicador,
+            });
+        } catch (e) {
+            logger.error(e);
+            return next(e);
+        }
+    };
+
+    duplicar = async (req, res, next) => {
+        try {
+            const { error, value } = duplicarIndicadores.validate(req.body);
+            if (error) return next(new ApiError(httpStatus.BAD_REQUEST, error.details[0].message));
+            const ossIdFiltro = getOssIdSeEscopoProprio(req);
+            const resultado = await IndicadorService.duplicarParaUnidade(
+                value.origemUnidadeId, value.destinoUnidadeId, ossIdFiltro,
+            );
+            return res.status(httpStatus.CREATED).json({
+                status: true,
+                message: `${resultado.duplicados} indicador(es) duplicado(s)`,
+                data: resultado,
             });
         } catch (e) {
             logger.error(e);

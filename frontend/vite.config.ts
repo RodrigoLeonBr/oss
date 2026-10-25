@@ -11,8 +11,8 @@ export default defineConfig({
     strictPort: true,
     proxy: {
       '/api': {
-        // 127.0.0.1 evita falhas ECONNREFUSED com localhost (IPv4/IPv6) no Windows
-        target: 'http://127.0.0.1:4001',
+        // Local: 127.0.0.1:4001 | Docker Compose: API_PROXY_TARGET=http://api:4001
+        target: process.env.API_PROXY_TARGET ?? 'http://127.0.0.1:4001',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, '/api'),
       },

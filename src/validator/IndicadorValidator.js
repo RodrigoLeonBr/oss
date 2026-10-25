@@ -1,12 +1,15 @@
 const Joi = require('joi');
 
+// IDs do seed não são GUID hex (ex.: uuuu0005-...); aceita formato 8-4-4-4-12 alfanumérico + UUID real
+const ID = () => Joi.string().pattern(/^[0-9A-Za-z]{8}-[0-9A-Za-z]{4}-[0-9A-Za-z]{4}-[0-9A-Za-z]{4}-[0-9A-Za-z]{12}$/);
+
 // ── Schema simplificado para o CRUD de Indicadores por Unidade ───────────────
 // tipo: 'producao' (mapeado para 'quantitativo' no BD) | 'qualidade' (→ 'qualitativo')
 // status: 'ativo' | 'inativo' (mapeado para ativo=1/0 no BD)
 
 const criarIndicador = Joi.object({
     // Campos do CRUD simplificado
-    unidadeId:      Joi.string().uuid().required()
+    unidadeId:      ID().required()
                        .messages({ 'any.required': 'unidadeId é obrigatório', 'string.guid': 'unidadeId inválido' }),
     nome:           Joi.string().max(300).required()
                        .messages({ 'any.required': 'Nome é obrigatório', 'string.max': 'Nome muito longo (máx. 300 caracteres)' }),
@@ -22,11 +25,12 @@ const criarIndicador = Joi.object({
     vigenciaFim:    Joi.string().isoDate().optional().allow(null, ''),
     prazoImplantacao: Joi.string().isoDate().optional().allow(null, ''),
     status:         Joi.string().valid('ativo', 'inativo').optional().default('ativo'),
+    obrigatorio:    Joi.boolean().optional().default(true),
 
     // Campos legado aceitos mas ignorados pelo novo service (compatibilidade)
     codigo:         Joi.string().max(50).optional().strip(),
     grupo:          Joi.string().valid('auditoria_operacional', 'qualidade_atencao', 'transversal', 'rh').optional(),
-    bloco_id:       Joi.string().uuid().optional().allow(null),
+    bloco_id:       ID().optional().allow(null),
     formula_calculo: Joi.string().optional().allow('', null),
     periodicidade:  Joi.string().valid('mensal', 'bimestral', 'trimestral', 'quadrimestral', 'unico').optional(),
     fonte_dados:    Joi.string().valid('SIASUS', 'SIH', 'CNES', 'Prontuario', 'Manual', 'Misto').optional(),
@@ -35,7 +39,7 @@ const criarIndicador = Joi.object({
 
 const atualizarIndicador = Joi.object({
     // Frontend envia unidadeId no payload de edição — ignorado (unidade não muda via PUT)
-    unidadeId:      Joi.string().uuid().optional().strip(),
+    unidadeId:      ID().optional().strip(),
 
     nome:           Joi.string().max(300).optional(),
     descricao:      Joi.string().max(2000).optional().allow('', null),
@@ -46,6 +50,7 @@ const atualizarIndicador = Joi.object({
     vigenciaFim:    Joi.string().isoDate().optional().allow(null, ''),
     prazoImplantacao: Joi.string().isoDate().optional().allow(null, ''),
     status:         Joi.string().valid('ativo', 'inativo').optional(),
+    obrigatorio:    Joi.boolean().optional(),
 
     // Legado
     grupo:          Joi.string().valid('auditoria_operacional', 'qualidade_atencao', 'transversal', 'rh').optional(),
@@ -57,15 +62,22 @@ const atualizarIndicador = Joi.object({
 
 const listarIndicadores = Joi.object({
     // camelCase (frontend)
-    unidadeId:      Joi.string().uuid().optional(),
+    unidadeId:      ID().optional(),
     status:         Joi.string().valid('ativo', 'inativo').optional(),
     tipo:           Joi.string().valid('producao', 'qualidade').optional(),
     incluirInativos: Joi.boolean().optional().default(false),
 
     // snake_case (legado / outros clientes)
-    unidade_id:     Joi.string().uuid().optional(),
+    unidade_id:     ID().optional(),
     grupo:          Joi.string().valid('auditoria_operacional', 'qualidade_atencao', 'transversal', 'rh').optional(),
     incluir_inativos: Joi.boolean().optional().default(false),
 });
 
-module.exports = { criarIndicador, atualizarIndicador, listarIndicadores };
+const duplicarIndicadores = Joi.object({
+    origemUnidadeId: ID().required().messages({ 'any.required': 'origemUnidadeId é obrigatório' }),
+    destinoUnidadeId: ID().required().messages({ 'any.required': 'destinoUnidadeId é obrigatório' }),
+});
+
+module.exports = {
+    criarIndicador, atualizarIndicador, listarIndicadores, duplicarIndicadores,
+};

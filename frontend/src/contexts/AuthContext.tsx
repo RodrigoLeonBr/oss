@@ -1,4 +1,12 @@
-import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react'
+import {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+  type ReactNode,
+} from 'react'
 import type { Usuario, Perfil, PermissaoPerfil } from '../types'
 
 interface AuthState {
@@ -14,7 +22,7 @@ interface AuthContextType extends AuthState {
   permissionsLoaded: boolean
   login: (email: string, password: string) => Promise<void>
   logout: () => void
-  /** Renova access+refresh; chamado após ações e ao mudar de módulo. */
+  /** Renova access+refresh (useApi chama só perto da expiração do access). */
   extendSession: () => Promise<boolean>
   canDo: (modulo: string, action: 'view' | 'insert' | 'update' | 'delete') => boolean
   escopo: (modulo: string) => 'global' | 'proprio' | null
@@ -37,7 +45,7 @@ function isTokenExpired(token: string): boolean {
   }
 }
 
-/** Expiração do access token em ms (para countdown no cabeçalho) */
+/** Expiração do access token em ms (sliding session em useApi) */
 export function accessTokenExpMs(token: string | null): number | null {
   if (!token) return null
   try {
@@ -101,6 +109,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [auth, setAuth] = useState<AuthState>(parseOssAuthFromStorage)
   const [permissions, setPermissions] = useState<PermissaoPerfil[]>([])
   const [permissionsLoaded, setPermissionsLoaded] = useState(false)
+  /** Login já envia permissões; evita GET /me/permissions duplicado no mesmo ciclo */
+  const skipPermissionsFetchOnce = useRef(false)
 
   const [darkMode, setDarkMode] = useState(
     () => localStorage.getItem('oss_dark_mode') === 'true',
@@ -123,10 +133,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [auth])
 
+  const userId = auth.user?.usuario_id ?? null
+
   useEffect(() => {
-    if (!auth.isAuthenticated || !auth.token) {
+    if (!auth.isAuthenticated || !auth.token || !userId) {
       setPermissions([])
       setPermissionsLoaded(true)
+      return
+    }
+    if (skipPermissionsFetchOnce.current) {
+      skipPermissionsFetchOnce.current = false
       return
     }
     setPermissionsLoaded(false)
@@ -158,7 +174,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true
     }
-  }, [auth.isAuthenticated, auth.token])
+    // Permissões são por usuário; renovar access token não deve refetch. auth.token lido no fechamento.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- deps só identidade (carrega uma vez por login/sessão)
+  }, [auth.isAuthenticated, userId])
 
   const login = useCallback(async (email: string, password: string) => {
     const res = await fetch('/api/auth/login', {
@@ -170,13 +188,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const body = await res.json().catch(() => ({}))
       throw new Error((body as { message?: string }).message || 'Credenciais inválidas')
     }
-    const body = await res.json()
-    const user: Usuario = body.data
-    const token: string = body.tokens.access.token
+    const body = (await res.json()) as {
+      data: Usuario
+      tokens: { access: { token: string }; refresh?: { token?: string } }
+      permissions?: Record<string, unknown>[]
+    }
+    const user = body.data
+    const token = body.tokens.access.token
     const refreshT =
       body.tokens?.refresh?.token && typeof body.tokens.refresh.token === 'string'
         ? body.tokens.refresh.token
         : null
+    const permList = Array.isArray(body.permissions) ? body.permissions.map(normalizePermRow) : null
+    if (permList) {
+      skipPermissionsFetchOnce.current = true
+      setPermissions(permList)
+      setPermissionsLoaded(true)
+    }
     setAuth({ user, token, refreshToken: refreshT, isAuthenticated: true })
   }, [])
 
@@ -217,7 +245,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })()
     refreshInFlight = run
     return run
-  }, [auth.refreshToken, auth.isAuthenticated, auth.user])
+  }, [auth.refreshToken])
 
   useEffect(() => {
     if (!import.meta.env.DEV) return

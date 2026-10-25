@@ -1,0 +1,66 @@
+# Produção: uma imagem (API + frontend estático em frontend/dist). Porta única (padrão 4001).
+# Uso: docker compose -f docker-compose.prod.yml up -d
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: oss_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: oss_app
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: ${PORT:-4001}
+      DB_HOST: ${DOCKER_DB_HOST:-host.docker.internal}
+      DB_PORT: ${DB_PORT:-3306}
+      DB_USER: ${DB_USER:-root}
+      DB_PASS: ${DB_PASS:-}
+      DB_NAME: ${DB_NAME:-oss}
+      DB_PRODUCAO_HOST: ${DOCKER_DB_HOST:-host.docker.internal}
+      DB_PRODUCAO_PORT: ${DB_PRODUCAO_PORT:-3306}
+      DB_PRODUCAO_USER: ${DB_PRODUCAO_USER:-hospital}
+      DB_PRODUCAO_PASS: ${DB_PRODUCAO_PASS:-}
+      DB_PRODUCAO_NAME: ${DB_PRODUCAO_NAME:-producao}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      JWT_ACCESS_EXPIRATION_MINUTES: ${JWT_ACCESS_EXPIRATION_MINUTES:-60}
+      JWT_REFRESH_EXPIRATION_DAYS: ${JWT_REFRESH_EXPIRATION_DAYS:-30}
+      LOG_FOLDER: logs/
+      LOG_FILE: "%DATE%-app-log.log"
+      LOG_LEVEL: ${LOG_LEVEL:-error}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_USE_PASSWORD: ${REDIS_USE_PASSWORD:-no}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+    ports:
+      - "${PORT:-4001}:4001"
+    volumes:
+      - app_logs:/usr/src/app/logs
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:$$PORT/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  redis_data:
+  app_logs:

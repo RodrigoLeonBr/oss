@@ -12,6 +12,8 @@ export interface IndicadorRecord {
   vigenciaFim: string | null
   prazoImplantacao: string | null
   status: 'ativo' | 'inativo'
+  /** Obrigatório entra no cálculo (Dashboard/CMS); informativo (false) fica de fora */
+  obrigatorio?: boolean
   createdAt?: string
   updatedAt?: string
   unidade?: { id: string; nome: string; sigla?: string | null }
@@ -28,6 +30,7 @@ export interface IndicadorFormData {
   vigenciaFim: string
   prazoImplantacao: string
   status: 'ativo' | 'inativo'
+  obrigatorio: boolean
 }
 
 // ── Erros de validação ────────────────────────────────────────────────────────

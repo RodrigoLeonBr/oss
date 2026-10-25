@@ -33,13 +33,8 @@ router.put(
     controller.rejeitar,
 );
 
-router.put(
-    '/:id/revogar',
-    auth(),
-    checkPermission('aprovacao', 'update'),
-    auditar('tb_acompanhamento_mensal', 'UPDATE'),
-    controller.revogar,
-);
+// ponytail: revogar não existe no controller ainda — rota comentada até ser implementada
+// router.put('/:id/revogar', auth(), checkPermission('aprovacao', 'update'), auditar('tb_acompanhamento_mensal', 'UPDATE'), controller.revogar);
 
 router.post(
     '/calcular-descontos',

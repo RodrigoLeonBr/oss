@@ -4,7 +4,7 @@ import { List, type RowComponentProps } from 'react-window'
 import {
   BarChart3, Plus, Search, RefreshCw, Edit3, Trash2,
   CheckCircle, XCircle, ChevronUp, ChevronDown, ChevronsUpDown,
-  X as XIcon, ArrowLeft,
+  X as XIcon, ArrowLeft, Copy, Loader2,
 } from 'lucide-react'
 import { useApi, ApiError } from '../../hooks/useApi'
 import { usePermission } from '../../hooks/usePermission'
@@ -15,7 +15,7 @@ import {
   formatarMeta, unwrap, mockIndicadores,
 } from './types'
 import type { UnidadeRecord } from '../Unidades/types'
-import { mockUnidades } from '../Unidades/types'
+import { mockUnidades, formatarCnesOuDoc } from '../Unidades/types'
 import IndicadoresFormModal from './IndicadoresFormModal'
 import IndicadoresDeleteModal from './IndicadoresDeleteModal'
 
@@ -84,7 +84,14 @@ function IndicadorRow({
     >
       {/* Nome */}
       <div role="cell" className="min-w-0">
-        <p className="truncate font-medium text-text-primary" title={ind.nome}>{ind.nome}</p>
+        <p className="truncate font-medium text-text-primary" title={ind.nome}>
+          {ind.nome}
+          {ind.obrigatorio === false && (
+            <span className="ml-2 rounded-full bg-surface-alt px-1.5 py-0.5 align-middle text-[10px] font-medium text-text-muted" title="Informativo — fora do Dashboard/CMS">
+              informativo
+            </span>
+          )}
+        </p>
       </div>
 
       {/* Descrição */}
@@ -152,7 +159,7 @@ function IndicadorRow({
 export default function IndicadoresList() {
   const { unidadeId } = useParams<{ unidadeId: string }>()
   const navigate = useNavigate()
-  const { get, del } = useApi()
+  const { get, del, post } = useApi()
   const { canInsert, canUpdate, canDelete } = usePermission('indicadores')
 
   // ── State ──────────────────────────────────────────────────────────────────
@@ -170,6 +177,12 @@ export default function IndicadoresList() {
 
   const [formModal, setFormModal]     = useState<{ open: boolean; indicador?: IndicadorRecord }>({ open: false })
   const [deleteModal, setDeleteModal] = useState<{ open: boolean; indicador?: IndicadorRecord }>({ open: false })
+
+  // Duplicar indicadores de outra unidade (renovação de contrato)
+  const [dupOpen, setDupOpen]         = useState(false)
+  const [dupUnidades, setDupUnidades] = useState<{ id: string; nome: string }[]>([])
+  const [dupOrigem, setDupOrigem]     = useState('')
+  const [dupLoading, setDupLoading]   = useState(false)
 
   const buscaRef = useRef<HTMLInputElement>(null)
   const tableRef = useRef<HTMLDivElement>(null)
@@ -314,6 +327,39 @@ export default function IndicadoresList() {
     }
   }, [deleteModal.indicador, del, addToast])
 
+  // ── Duplicar de outra unidade ────────────────────────────────────────────────
+  const abrirDuplicar = useCallback(async () => {
+    setDupOpen(true)
+    setDupOrigem('')
+    try {
+      const res = await get<{ id: string; nome: string }[] | { data: { id: string; nome: string }[] }>('/unidades?ativo=1')
+      setDupUnidades(unwrap(res).filter(u => u.id !== unidadeId))
+    } catch {
+      setDupUnidades([])
+    }
+  }, [get, unidadeId])
+
+  const handleDuplicar = useCallback(async () => {
+    if (!dupOrigem || !unidadeId) return
+    setDupLoading(true)
+    try {
+      const res = await post<{ data?: { duplicados: number; ignorados: string[] } }>(
+        '/indicadores/duplicar',
+        { origemUnidadeId: dupOrigem, destinoUnidadeId: unidadeId },
+      )
+      const r = (res && 'data' in res ? res.data : res) as { duplicados: number; ignorados: string[] } | undefined
+      const dup = r?.duplicados ?? 0
+      const ign = r?.ignorados?.length ?? 0
+      setDupOpen(false)
+      addToast('ok', `${dup} indicador(es) duplicado(s)${ign ? `, ${ign} ignorado(s) (nome já existia)` : ''}.`)
+      await fetchLista()
+    } catch (err) {
+      addToast('erro', `Erro ao duplicar: ${err instanceof Error ? err.message : 'tente novamente.'}`)
+    } finally {
+      setDupLoading(false)
+    }
+  }, [dupOrigem, unidadeId, post, addToast, fetchLista])
+
   // ── Sort button ────────────────────────────────────────────────────────────
   function SortBtn({ col, children }: { col: SortKey; children: React.ReactNode }) {
     return (
@@ -421,6 +467,11 @@ export default function IndicadoresList() {
                   {unidade ? (
                     <>
                       <span className="font-medium text-text-secondary">{unidade.nome}</span>
+                      {unidade.cnes && (
+                        <span className="ml-1 text-text-faint">
+                          · CNES <span className="font-mono">{formatarCnesOuDoc(unidade.cnes)}</span>
+                        </span>
+                      )}
                       {' · '}
                     </>
                   ) : null}
@@ -444,6 +495,16 @@ export default function IndicadoresList() {
           >
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
           </button>
+          {canInsert && (
+            <button
+              type="button"
+              onClick={abrirDuplicar}
+              className="inline-flex items-center gap-2 rounded-xl border border-border-subtle bg-surface px-4 py-2.5 text-sm font-semibold text-text-secondary transition-colors hover:bg-hover hover:text-text-primary"
+            >
+              <Copy size={16} />
+              Duplicar de outra unidade
+            </button>
+          )}
           {canInsert && (
             <button
               type="button"
@@ -631,6 +692,51 @@ export default function IndicadoresList() {
           onConfirmar={handleDeleteConfirm}
           onFechar={() => setDeleteModal({ open: false })}
         />
+      )}
+
+      {/* ── Duplicar de outra unidade ── */}
+      {dupOpen && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true">
+          <div className="w-full max-w-md rounded-2xl border border-border-subtle bg-surface p-6 shadow-xl">
+            <div className="mb-1 flex items-center gap-2">
+              <Copy size={18} className="text-primary" />
+              <h2 className="text-lg font-bold text-text-primary">Duplicar indicadores</h2>
+            </div>
+            <p className="mb-4 text-sm text-text-muted">
+              Copia todos os indicadores ativos (e suas metas) da unidade escolhida para
+              <strong className="text-text-secondary"> {unidade?.nome ?? 'esta unidade'}</strong>.
+              Indicadores com nome já existente são ignorados. Depois você pode editar/remover.
+            </p>
+            <label className="mb-1 block text-sm font-medium text-text-secondary">Unidade de origem</label>
+            <select
+              value={dupOrigem}
+              onChange={e => setDupOrigem(e.target.value)}
+              className="mb-5 w-full rounded-xl border border-border-subtle bg-surface px-3 py-2 text-sm text-text-primary focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/40"
+            >
+              <option value="">Selecione…</option>
+              {dupUnidades.map(u => <option key={u.id} value={u.id}>{u.nome}</option>)}
+            </select>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setDupOpen(false)}
+                disabled={dupLoading}
+                className="rounded-xl border border-border-subtle bg-surface px-4 py-2 text-sm font-medium text-text-secondary hover:bg-hover disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleDuplicar}
+                disabled={!dupOrigem || dupLoading}
+                className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2 text-sm font-semibold text-white hover:bg-primary-dark disabled:opacity-50"
+              >
+                {dupLoading ? <Loader2 size={15} className="animate-spin" /> : <Copy size={15} />}
+                Duplicar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

@@ -1,5 +1,5 @@
-import { useState, useEffect, lazy, Suspense } from 'react'
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { useState, lazy, Suspense } from 'react'
+import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './contexts/AuthContext'
 import SidebarMenu from './components/SidebarMenu'
 import Header from './components/layout/Header'
@@ -22,6 +22,8 @@ const MetasHub           = lazy(() => import('./pages/Metas/MetasHub'))
 const MetasList          = lazy(() => import('./pages/Metas/MetasList'))
 const UsuariosList       = lazy(() => import('./pages/Admin/UsuariosList'))
 const PermissoesMatrix   = lazy(() => import('./pages/Admin/PermissoesMatrix'))
+const PonteProducaoPage  = lazy(() => import('./pages/Producao/PonteProducaoPage'))
+const MapaProducaoPage   = lazy(() => import('./pages/Producao/MapaProducaoPage'))
 
 const Spinner = () => (
   <div className="flex h-screen items-center justify-center bg-canvas">
@@ -29,22 +31,10 @@ const Spinner = () => (
   </div>
 )
 
-/** A cada troca de rota (módulo/página) renova access+refresh, reiniciando o tempo exibido no cabeçalho */
-function SessionRenewOnRouteChange() {
-  const { isAuthenticated, extendSession } = useAuth()
-  const { pathname } = useLocation()
-  useEffect(() => {
-    if (!isAuthenticated) return
-    void extendSession()
-  }, [pathname, isAuthenticated, extendSession])
-  return null
-}
-
 function AppLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   return (
     <div className="flex h-screen overflow-hidden">
-      <SessionRenewOnRouteChange />
       <SidebarMenu isOpen={sidebarOpen} onToggle={() => setSidebarOpen(v => !v)} />
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <Header onMenuToggle={() => setSidebarOpen(v => !v)} />
@@ -80,6 +70,8 @@ export default function App() {
         <Route path="/entrada-mensal/:unidadeId" element={<Guarded modulo="entrada_mensal"><EntradaMensalList /></Guarded>} />
         <Route path="/aprovacao"               element={<Guarded modulo="aprovacao"><AprovacaoPage /></Guarded>} />
         <Route path="/relatorios"              element={<Guarded modulo="relatorios"><RelatoriosCMSPage /></Guarded>} />
+        <Route path="/ponte-producao"          element={<Guarded modulo="relatorios"><PonteProducaoPage /></Guarded>} />
+        <Route path="/mapa-producao"           element={<Guarded modulo="relatorios"><MapaProducaoPage /></Guarded>} />
         <Route path="/perfil-oss"              element={<Guarded modulo="perfil_oss"><PerfilOSSPage /></Guarded>} />
         <Route path="/oss/*"                   element={<Guarded modulo="oss"><OssList /></Guarded>} />
         <Route path="/contratos/*"             element={<Guarded modulo="contratos"><ContratosList /></Guarded>} />

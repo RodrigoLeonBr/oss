@@ -4,6 +4,7 @@ import {
   LayoutDashboard, ClipboardEdit, ShieldCheck, FileBarChart2,
   Building2, Building, FileText, Hospital, Target, BarChart3,
   ChevronDown, X, Heart, Users, Shield, Settings,
+  GitCompareArrows, Layers,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -38,7 +39,9 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/dashboard',    label: 'Dashboard',      icon: <LayoutDashboard size={20} />, modulo: 'dashboard' },
   { to: '/entrada-mensal', label: 'Entrada Mensal', icon: <ClipboardEdit size={20} />, modulo: 'entrada_mensal' },
   { to: '/aprovacao',    label: 'Aprovação',      icon: <ShieldCheck size={20} />,    modulo: 'aprovacao' },
-  { to: '/relatorios',   label: 'Relatórios CMS', icon: <FileBarChart2 size={20} />, modulo: 'relatorios' },
+  { to: '/relatorios',   label: 'Relatórios CMS',   icon: <FileBarChart2 size={20} />,     modulo: 'relatorios' },
+  { to: '/ponte-producao', label: 'Ponte de Produção', icon: <GitCompareArrows size={20} />, modulo: 'relatorios' },
+  { to: '/mapa-producao',  label: 'Mapa de Produção',  icon: <Layers size={20} />,           modulo: 'relatorios' },
   { to: '/perfil-oss',   label: 'Perfil OSS',     icon: <Building2 size={20} />,      modulo: 'perfil_oss' },
 ]
 

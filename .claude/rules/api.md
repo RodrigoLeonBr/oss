@@ -23,9 +23,13 @@ Carrega sob demanda ao tocar no backend. Para RBAC/escopo/LGPD ver `security.md`
 
 ## Rotas montadas (`src/route/index.js`, base `/api`)
 
-`/auth` · `/oss` · `/unidades` · `/acompanhamento-mensal` · `/acompanhamentos` · `/indicadores` · `/contratos` · `/descontos` · `/metas` · `/usuarios` · `/permissoes` · `/relatorios` · `GET /health`.
+`/auth` · `/oss` · `/unidades` · `/acompanhamento-mensal` · `/acompanhamentos` · `/indicadores` · `/contratos` · `/descontos` · `/metas` · `/usuarios` · `/permissoes` · `/relatorios` · `/mapa-producao` · `/ponte-producao` · `GET /health`.
 
 > Há **dois** módulos de acompanhamento montados (`/acompanhamento-mensal` e `/acompanhamentos`) — confirme qual antes de editar.
+
+## Ponte de Produção (cross-DB, read-only)
+
+`/mapa-producao` (CRUD do de-para `tb_mapa_producao`) e `/ponte-producao` (comparação) comparam `tb_acompanhamento_mensal.valor_realizado` com a produção registrada no banco **`producao`** (consultaprod), lido por conexão **read-only** `src/config/producaoDb.js` (só SELECT). Agregação SIGTAP por prefixo via `src/helper/filtroProducao.js`. RBAC módulo `relatorios`. Detalhe: `docs/ponte-producao.md`.
 
 ## Regra de cumprimento — fonte única
 
