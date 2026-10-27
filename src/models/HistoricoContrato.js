@@ -15,6 +15,8 @@ class HistoricoContrato extends Model {
         perc_variavel: { type: DataTypes.DECIMAL(5, 2), allowNull: false },
         modelo_desconto_qual: { type: DataTypes.ENUM('flat', 'ponderado'), allowNull: false },
         motivo_versao: { type: DataTypes.TEXT, allowNull: false },
+        // JSON da regra de recebimento da vigência (ver helper/percentualRecebimento.js); null = padrão fixa_variavel
+        regra_recebimento: DataTypes.TEXT,
         aprovado_por: DataTypes.CHAR(36),
       },
       {

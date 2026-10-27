@@ -1,11 +1,13 @@
 const express = require('express');
 const AcompanhamentoController = require('../controllers/AcompanhamentoController');
+const RecebimentoController = require('../controllers/RecebimentoController');
 const auth = require('../middlewares/auth');
 const { checkPermission } = require('../middlewares/rbac');
 const { auditar } = require('../middlewares/auditoria');
 
 const router = express.Router();
 const controller = new AcompanhamentoController();
+const recebimento = new RecebimentoController();
 
 router.get('/', auth(), checkPermission('entrada_mensal', 'view'), controller.listar);
 
@@ -35,6 +37,23 @@ router.put(
 
 // ponytail: revogar não existe no controller ainda — rota comentada até ser implementada
 // router.put('/:id/revogar', auth(), checkPermission('aprovacao', 'update'), auditar('tb_acompanhamento_mensal', 'UPDATE'), controller.revogar);
+
+// Justificativas (notas explicativas): contratada registra, comissão aceita (total/parcial) ou rejeita
+router.post(
+    '/:acompId/notas',
+    auth(),
+    checkPermission('entrada_mensal', 'insert'),
+    auditar('tb_notas_explicativas', 'INSERT'),
+    recebimento.criarNota,
+);
+
+router.put(
+    '/notas/:notaId/validar',
+    auth(),
+    checkPermission('aprovacao', 'update'),
+    auditar('tb_notas_explicativas', 'APPROVE'),
+    recebimento.validarNota,
+);
 
 router.post(
     '/calcular-descontos',

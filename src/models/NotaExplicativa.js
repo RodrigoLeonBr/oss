@@ -13,6 +13,8 @@ class NotaExplicativa extends Model {
         criado_por: { type: DataTypes.CHAR(36), allowNull: false },
         validado_por: DataTypes.CHAR(36),
         status_validacao: { type: DataTypes.ENUM('pendente', 'aceita', 'rejeitada'), allowNull: false, defaultValue: 'pendente' },
+        // aceite da comissão: % do peso considerado (null = 100) — usado em percentualRecebimento
+        alcance_considerado: DataTypes.DECIMAL(8, 4),
         motivo_rejeicao_nota: DataTypes.TEXT,
       },
       {
