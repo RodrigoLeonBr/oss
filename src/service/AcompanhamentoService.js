@@ -222,7 +222,11 @@ const calcularDescontosDoMes = async (mesReferencia, contratoId, ossIdFiltro = n
 
     const qualidadeNaoCumpridos = await db.acompanhamento_mensal.findAll({
         where: { mes_referencia: mesReferencia, status_cumprimento: 'nao_cumprido', status_aprovacao: 'aprovado' },
-        include: [{ model: db.indicador, as: 'indicador', where: { tipo: 'qualitativo' } }],
+        include: [{
+            model: db.indicador,
+            as: 'indicador',
+            where: { tipo: 'qualitativo', unidade_id: contrato.unidades.map((u) => u.unidade_id) },
+        }],
     });
 
     const modeloDesconto = contrato.modelo_desconto_qual;
