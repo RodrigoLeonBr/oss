@@ -70,55 +70,80 @@ function linhaDe(ind, meses) {
     };
 }
 
-/** Mês de aplicação (jan/abr/jul/out) → meses 'YYYY-MM-01' do trimestre anterior; senão null. */
-function trimestreAnterior(mesYm) {
+const MESES_PERIODO = { trimestral: 3, quadrimestral: 4 };
+
+/**
+ * Mês de aplicação (trimestral: jan/abr/jul/out; quadrimestral: jan/mai/set) → meses 'YYYY-MM-01'
+ * do período anterior; senão null.
+ */
+function periodoAnterior(mesYm, periodo) {
+    const n = MESES_PERIODO[periodo];
     const [y, m] = mesYm.split('-').map(Number);
-    if ((m - 1) % 3 !== 0) return null;
-    const meses = [3, 2, 1].map((k) => {
-        const d = new Date(y, m - 1 - k, 1);
+    if (!n || (m - 1) % n !== 0) return null;
+    const meses = Array.from({ length: n }, (_, i) => {
+        const d = new Date(y, m - 1 - n + i, 1);
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
     });
     const [ty, tm] = meses[0].split('-').map(Number);
-    return { meses, rotulo: `T${Math.floor((tm - 1) / 3) + 1}/${ty}` };
+    return { periodo, meses, rotulo: `${n === 3 ? 'T' : 'Q'}${Math.floor((tm - 1) / n) + 1}/${ty}` };
 }
 
 /**
  * Percentual de recebimento do mês (cálculo vivo, não grava repasse).
  * Regra da vigência em tb_historico_contrato.regra_recebimento (null = fixa_variavel padrão).
- * producao.periodo 'trimestral': desconto de produção só nos meses de aplicação, sobre o trimestre
- * anterior; nos demais meses as linhas quantitativas são prévia do mês.
+ * producao.periodo / qualidade.periodo 'trimestral'|'quadrimestral': desconto só nos meses de aplicação,
+ * sobre o período anterior; nos demais meses é prévia do mês.
+ * Contrato com várias unidades (009/2023): `unidadeId` calcula só a unidade, com o valor dela e a regra
+ * de regra_recebimento.unidades[unidadeId] (perc_fixo / perc_variavel / valor_mensal opcionais).
  * @param {string} contratoId
  * @param {string} mesYm 'YYYY-MM'
+ * @param {string|null} [ossIdFiltro]
+ * @param {string|null} [unidadeId]
  */
-const calcularRecebimento = async (contratoId, mesYm, ossIdFiltro = null) => {
+const calcularRecebimento = async (contratoId, mesYm, ossIdFiltro = null, unidadeId = null) => {
     await assertContratoNoEscopoOSS(contratoId, ossIdFiltro);
     const mes = `${mesYm}-01`;
 
-    const contrato = await db.contrato.findByPk(contratoId);
+    const contrato = await db.contrato.findByPk(contratoId, {
+        include: [{ model: db.unidade, as: 'unidades', attributes: ['unidade_id', 'sigla', 'nome', 'valor_mensal_unidade'] }],
+    });
     if (!contrato) throw new ApiError(httpStatus.NOT_FOUND, 'Contrato não encontrado');
+    const unidade = unidadeId ? contrato.unidades.find((u) => u.unidade_id === unidadeId) : null;
+    if (unidadeId && !unidade) throw new ApiError(httpStatus.NOT_FOUND, 'Unidade não encontrada no contrato');
 
     const hist = await db.historico_contrato.findOne({
         where: { contrato_id: contratoId, ...vigenteEm(mes) },
         order: [['versao', 'DESC']],
     });
     const fonte = hist || contrato;
-    const regra = regraEfetiva(hist?.regra_recebimento || null);
-    const base = parseFloat(fonte.valor_mensal_base);
-    const parcelaFixa = (base * parseFloat(fonte.perc_fixo)) / 100;
-    const parcelaVariavel = (base * parseFloat(fonte.perc_variavel)) / 100;
+    const bruta = hist?.regra_recebimento ? JSON.parse(hist.regra_recebimento) : null;
+    const regraUnidade = unidade ? bruta?.unidades?.[unidade.unidade_id] || null : null;
+    const regra = regraEfetiva(unidade ? regraUnidade : bruta);
+    const base = parseFloat(regraUnidade?.valor_mensal ?? (unidade ? unidade.valor_mensal_unidade : fonte.valor_mensal_base));
+    const parcelaFixa = (base * parseFloat(regraUnidade?.perc_fixo ?? fonte.perc_fixo)) / 100;
+    const parcelaVariavel = (base * parseFloat(regraUnidade?.perc_variavel ?? fonte.perc_variavel)) / 100;
 
-    const trimestral = regra.modelo === 'producao_qualidade' && regra.producao?.periodo === 'trimestral';
-    const tri = trimestral ? trimestreAnterior(mesYm) : null;
+    const producao = regra.modelo === 'producao_qualidade';
+    const periodoProd = producao && MESES_PERIODO[regra.producao?.periodo] ? regra.producao.periodo : null;
+    const periodoQual = producao && regra.qualidade?.modo === 'linear' && MESES_PERIODO[regra.qualidade.periodo]
+        ? regra.qualidade.periodo : null;
+    const tri = periodoProd ? periodoAnterior(mesYm, periodoProd) : null;
+    const perQual = periodoQual ? periodoAnterior(mesYm, periodoQual) : null;
 
     const indicadores = await db.indicador.findAll({
-        where: { contrato_id: contratoId, ativo: 1, obrigatorio: 1, ...vigenteEm(mes) },
+        where: {
+            contrato_id: contratoId, ativo: 1, obrigatorio: 1, ...vigenteEm(mes), ...(unidade ? { unidade_id: unidade.unidade_id } : {}),
+        },
         include: [
             { model: db.meta, as: 'metas', required: false },
             {
                 model: db.acompanhamento_mensal,
                 as: 'acompanhamentos',
                 required: false,
-                where: { mes_referencia: [mes, ...(tri ? tri.meses : [])], status_aprovacao: { [Op.ne]: 'rejeitado' } },
+                where: {
+                    mes_referencia: [mes, ...(tri ? tri.meses : []), ...(perQual ? perQual.meses : [])],
+                    status_aprovacao: { [Op.ne]: 'rejeitado' },
+                },
                 include: [{ model: db.nota_explicativa, as: 'notas', required: false }],
             },
             { model: db.bloco_producao, as: 'bloco', required: false },
@@ -131,6 +156,8 @@ const calcularRecebimento = async (contratoId, mesYm, ossIdFiltro = null) => {
         ? await db.historico_bloco.findAll({ where: { bloco_id: blocoIds, ...vigenteEm(mes) }, order: [['versao', 'DESC']] })
         : [];
     const pesoBloco = (bloco) => {
+        const daRegra = regraUnidade?.pesos_blocos?.[bloco.codigo];
+        if (daRegra != null) return parseFloat(daRegra);
         const h = histBlocos.find((x) => x.bloco_id === bloco.bloco_id);
         return parseFloat(h ? h.percentual_peso_bloco : bloco.percentual_peso_bloco);
     };
@@ -153,9 +180,10 @@ const calcularRecebimento = async (contratoId, mesYm, ossIdFiltro = null) => {
         }
         return [...grupos.values()];
     };
-    const qual = indicadores
+    const qualDe = (m) => indicadores
         .filter((i) => i.tipo === 'qualitativo')
-        .map((ind) => ({ ...linhaDe(ind, [mes]), peso: parseFloat(ind.peso_perc), grupo: ind.grupo }));
+        .map((ind) => ({ ...linhaDe(ind, [m]), peso: parseFloat(ind.peso_perc), grupo: ind.grupo }));
+    const qual = qualDe(mes);
 
     const comum = {
         regra, qual, parcelaFixa, parcelaVariavel, valorMensal: base,
@@ -164,17 +192,23 @@ const calcularRecebimento = async (contratoId, mesYm, ossIdFiltro = null) => {
     const resultado = calcular({
         ...comum,
         quant: tri ? gruposDe(tri.meses) : previa,
-        aplicarProducao: !trimestral || Boolean(tri),
+        aplicarProducao: !periodoProd || Boolean(tri),
+        qualPeriodo: perQual ? perQual.meses.map(qualDe) : undefined,
+        aplicarQualidade: !periodoQual || Boolean(perQual),
     });
-    const extraTrimestral = trimestral ? {
-        oficial: tri ? { trimestre: tri.rotulo, meses: tri.meses.map((m) => m.slice(0, 7)) } : null,
+    const rotuloDe = (p) => (p ? { trimestre: p.rotulo, periodo: p.periodo, meses: p.meses.map((m) => m.slice(0, 7)) } : null);
+    const extraPeriodo = periodoProd ? {
+        oficial: rotuloDe(tri),
         previa: calcular({ ...comum, quant: previa, aplicarProducao: false }).grupos,
     } : {};
+    const extraQual = periodoQual ? { periodo_qual: periodoQual, oficial_qual: rotuloDe(perQual) } : {};
 
     return {
         contrato_id: contratoId,
         numero: contrato.numero,
         mes: mesYm,
+        unidade: unidade ? { unidade_id: unidade.unidade_id, sigla: unidade.sigla, nome: unidade.nome } : null,
+        unidades: contrato.unidades.map((u) => ({ unidade_id: u.unidade_id, sigla: u.sigla, nome: u.nome })),
         vigencia: hist ? {
             versao: hist.versao, inicio: hist.vigencia_inicio, fim: hist.vigencia_fim, aditivo_id: hist.aditivo_id,
         } : null,
@@ -183,7 +217,8 @@ const calcularRecebimento = async (contratoId, mesYm, ossIdFiltro = null) => {
         parcela_variavel: parcelaVariavel,
         regra,
         ...resultado,
-        ...extraTrimestral,
+        ...extraPeriodo,
+        ...extraQual,
     };
 };
 

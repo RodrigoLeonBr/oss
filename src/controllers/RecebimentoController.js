@@ -14,8 +14,10 @@ const validar = (schema, dados) => {
 class RecebimentoController {
     consultar = async (req, res, next) => {
         try {
-            const { contratoId, mes } = validar(consultarRecebimento, { contratoId: req.params.contratoId, mes: req.query.mes });
-            const data = await RecebimentoService.calcularRecebimento(contratoId, mes, getOssIdSeEscopoProprio(req));
+            const { contratoId, mes, unidade } = validar(consultarRecebimento, {
+                contratoId: req.params.contratoId, mes: req.query.mes, unidade: req.query.unidade,
+            });
+            const data = await RecebimentoService.calcularRecebimento(contratoId, mes, getOssIdSeEscopoProprio(req), unidade || null);
             return res.status(httpStatus.OK).json({ status: true, data });
         } catch (e) {
             logger.error(e);

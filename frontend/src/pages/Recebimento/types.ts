@@ -38,6 +38,7 @@ export interface Grupo {
   peso: number
   linhas: Linha[]
   pendente: boolean
+  informativo?: boolean
   // fixa_variavel
   fator_apurado?: number | null
   fator_comissao?: number | null
@@ -72,7 +73,10 @@ export interface Recebimento {
   numero: string
   mes: string
   modelo: Modelo
-  pontuacao: 'proporcional' | 'niveis'
+  pontuacao: 'proporcional' | 'niveis' | 'binaria'
+  regra?: { producao?: { periodo?: string } }
+  unidade: Unidade | null
+  unidades: Unidade[]
   vigencia: { versao: number; inicio: string; fim: string | null } | null
   valor_mensal_base: number
   parcela_fixa: number
@@ -82,10 +86,17 @@ export interface Recebimento {
   pendentes: number
   apurado: Resultado
   aposComissao: Resultado
-  // producao_qualidade trimestral
-  oficial?: { trimestre: string; meses: string[] } | null
+  // producao_qualidade por período (trimestral/quadrimestral)
+  oficial?: Periodo | null
   previa?: Grupo[]
+  // qualidade linear por período (UNACON)
+  periodo_qual?: Periodo['periodo']
+  oficial_qual?: Periodo | null
 }
+
+export interface Unidade { unidade_id: string; sigla: string; nome: string }
+
+export interface Periodo { trimestre: string; periodo: 'trimestral' | 'quadrimestral'; meses: string[] }
 
 export const fmtPct = (v: number | null | undefined, casas = 1) =>
   v == null ? '—' : `${v.toLocaleString('pt-BR', { minimumFractionDigits: casas, maximumFractionDigits: casas })}%`

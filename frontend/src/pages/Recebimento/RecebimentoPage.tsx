@@ -46,7 +46,7 @@ function CardResultado({ titulo, r, modelo, destaque }: { titulo: string; r: Res
         {modelo === 'producao_qualidade' ? (
           <>
             <Par rotulo="Nota qualitativa" valor={fmtNum(r.nota_qualitativa)} />
-            <Par rotulo="Escala do repasse" valor={fmtPct(r.perc_escala, 0)} />
+            <Par rotulo="Escala do repasse" valor={fmtPct(r.perc_escala, Number.isInteger(r.perc_escala) ? 0 : 2)} />
             <Par rotulo="Valor pela escala" valor={fmtBRL(r.valor_escala)} />
             <Par rotulo="Desconto produção" valor={r.desconto_producao ? `− ${fmtBRL(r.desconto_producao)}` : fmtBRL(0)} />
           </>
@@ -140,6 +140,7 @@ export default function RecebimentoPage() {
   const { get } = useApi()
   const [contratos, setContratos] = useState<{ id: string; label: string }[]>([])
   const [contratoId, setContratoId] = useState('')
+  const [unidadeId, setUnidadeId] = useState('')
   const [mes, setMes] = useState(mesAnterior())
   const [data, setData] = useState<Recebimento | null>(null)
   const [loading, setLoading] = useState(false)
@@ -162,17 +163,21 @@ export default function RecebimentoPage() {
     if (!contratoId || !mes) return
     setLoading(true); setErro(null)
     try {
-      setData(unwrap(await get<{ data: Recebimento }>(`/descontos/recebimento/${contratoId}?mes=${mes}`)))
+      const qs = `mes=${mes}${unidadeId ? `&unidade=${unidadeId}` : ''}`
+      setData(unwrap(await get<{ data: Recebimento }>(`/descontos/recebimento/${contratoId}?${qs}`)))
     } catch (e) {
       setErro(e instanceof ApiError ? e.message : 'Erro ao calcular recebimento.')
       setData(null)
     } finally { setLoading(false) }
-  }, [get, contratoId, mes])
+  }, [get, contratoId, mes, unidadeId])
 
   useEffect(() => { carregar() }, [carregar])
 
   const producao = data?.modelo === 'producao_qualidade'
-  const trimestral = producao && data?.previa != null
+  const periodico = producao && data?.previa != null
+  const nomePeriodo = (p?: string) => (p === 'quadrimestral' ? 'quadrimestral' : 'trimestral')
+  const mesesAplicacao = (p?: string) => (p === 'quadrimestral' ? 'jan, mai, set' : 'jan, abr, jul, out')
+  const porNivel = data?.pontuacao === 'niveis' || data?.pontuacao === 'binaria'
 
   return (
     <div className="flex flex-col gap-5">
@@ -187,11 +192,21 @@ export default function RecebimentoPage() {
       <div className="flex flex-wrap items-end gap-3 rounded-xl border border-border-subtle bg-surface p-4">
         <label className="flex flex-col gap-1 text-sm">
           <span className="text-text-muted">Contrato</span>
-          <select value={contratoId} onChange={e => setContratoId(e.target.value)}
+          <select value={contratoId} onChange={e => { setContratoId(e.target.value); setUnidadeId('') }}
             className="rounded-lg border border-border-subtle bg-surface px-3 py-2 text-sm">
             {contratos.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
           </select>
         </label>
+        {(data?.unidades.length ?? 0) > 1 && (
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="text-text-muted">Unidade</span>
+            <select value={unidadeId} onChange={e => setUnidadeId(e.target.value)}
+              className="rounded-lg border border-border-subtle bg-surface px-3 py-2 text-sm">
+              <option value="">Contrato inteiro</option>
+              {data?.unidades.map(u => <option key={u.unidade_id} value={u.unidade_id}>{u.sigla}</option>)}
+            </select>
+          </label>
+        )}
         <label className="flex flex-col gap-1 text-sm">
           <span className="text-text-muted">Mês</span>
           <input type="month" value={mes} onChange={e => setMes(e.target.value)}
@@ -209,7 +224,7 @@ export default function RecebimentoPage() {
       {data && (
         <>
           <div className="flex flex-wrap items-center gap-4 text-sm text-text-muted">
-            <span>Contrato {data.numero}</span>
+            <span>Contrato {data.numero}{data.unidade && ` · ${data.unidade.nome}`}</span>
             {data.vigencia && <span>Vigência {data.vigencia.versao}: {fmtData(data.vigencia.inicio)} – {fmtData(data.vigencia.fim)}</span>}
             {producao
               ? <span>Repasse {fmtBRL(data.valor_mensal_base)} · base produção {fmtBRL(data.parcela_fixa)}</span>
@@ -227,14 +242,14 @@ export default function RecebimentoPage() {
               {producao ? 'Quantitativo — linhas de serviço' : 'Quantitativo — parcela fixa'}
             </h2>
             {!producao && <TabelaFixa grupos={data.grupos} onNota={setLinhaNota} />}
-            {producao && !trimestral && <TabelaProducao grupos={data.grupos} comDesconto onNota={setLinhaNota} />}
-            {trimestral && (
+            {producao && !periodico && <TabelaProducao grupos={data.grupos} comDesconto onNota={setLinhaNota} />}
+            {periodico && (
               <>
                 <div className="flex items-start gap-2 rounded-xl border border-border-subtle bg-surface px-4 py-3 text-sm text-text-secondary">
                   <Info size={16} className="mt-0.5 shrink-0 text-primary" />
                   {data.oficial
-                    ? <span>Apuração trimestral: o desconto do <b>{data.oficial.trimestre}</b> ({data.oficial.meses.join(', ')}) é aplicado neste mês.</span>
-                    : <span>Apuração trimestral: nenhum desconto de produção neste mês. A prévia abaixo mostra a faixa do mês; o desconto entra no mês seguinte ao fechamento do trimestre (jan, abr, jul, out).</span>}
+                    ? <span>Apuração {nomePeriodo(data.oficial.periodo)}: o desconto do <b>{data.oficial.trimestre}</b> ({data.oficial.meses.join(', ')}) é aplicado neste mês.</span>
+                    : <span>Apuração {nomePeriodo(data.regra?.producao?.periodo)}: nenhum desconto de produção neste mês. A prévia abaixo mostra a faixa do mês; o desconto entra no mês seguinte ao fechamento do período ({mesesAplicacao(data.regra?.producao?.periodo)}).</span>}
                 </div>
                 {data.oficial && <TabelaProducao grupos={data.grupos} comDesconto />}
                 <h3 className="mt-2 text-xs font-semibold uppercase tracking-wider text-text-muted">Prévia do mês</h3>
@@ -247,7 +262,15 @@ export default function RecebimentoPage() {
             <h2 className="text-sm font-semibold uppercase tracking-wider text-primary">
               {producao ? 'Qualitativo — nota da escala' : 'Qualitativo — parcela variável'}
             </h2>
-            <Tabela minWidth={860} cabecalho={['Indicador', 'Peso', 'Meta', 'Realizado', data.pontuacao === 'niveis' ? 'Nível' : 'Pontos apurados', 'Após comissão', 'Justificativa']}>
+            {data.periodo_qual && (
+              <div className="flex items-start gap-2 rounded-xl border border-border-subtle bg-surface px-4 py-3 text-sm text-text-secondary">
+                <Info size={16} className="mt-0.5 shrink-0 text-primary" />
+                {data.oficial_qual
+                  ? <span>Desconto qualitativo do <b>{data.oficial_qual.trimestre}</b> ({data.oficial_qual.meses.join(', ')}) aplicado neste mês: cada meta não atingida desconta {fmtPct(data.parcela_variavel / data.valor_mensal_base * 100, 0)} do repasse × peso, por mês. A tabela abaixo é a prévia do mês.</span>
+                  : <span>Apuração {nomePeriodo(data.periodo_qual)}: sem desconto qualitativo neste mês. A tabela abaixo é a prévia; o desconto entra em {mesesAplicacao(data.periodo_qual)}.</span>}
+              </div>
+            )}
+            <Tabela minWidth={860} cabecalho={['Indicador', 'Peso', 'Meta', 'Realizado', porNivel ? 'Nível' : 'Pontos apurados', 'Após comissão', 'Justificativa']}>
               {data.qual.map(l => (
                 <tr key={l.indicador_id} className={`border-t border-border-subtle ${l.informativo ? 'text-text-muted' : ''}`}>
                   <td className={td}>{l.nome}{l.informativo && <span className="ml-2 rounded bg-primary/5 px-1.5 py-0.5 text-[10px] uppercase">informativo</span>}</td>
@@ -255,7 +278,7 @@ export default function RecebimentoPage() {
                   <td className={td}>{(l.meta.meta_tipo ?? l.meta.meta_tipo_snap) === 'menor_igual' ? '≤ ' : '≥ '}{fmtNum(l.base)}</td>
                   <td className={td}>{fmtNum(l.realizado)}</td>
                   <td className={td}>
-                    {data.pontuacao === 'niveis'
+                    {porNivel
                       ? `${nivelDe(l.fator_apurado)}${!l.informativo && l.fator_apurado != null ? ` · ${fmtNum(l.peso * l.fator_apurado)}` : ''}`
                       : l.fator_apurado == null ? '—' : fmtNum(l.peso * l.fator_apurado)}
                   </td>

@@ -6,9 +6,12 @@
 //                                     variável × escala(nota qualitativa).
 //   producao_qualidade   (UPA Dona Rosa): repasse × escala(nota qualitativa)
 //                                     − Σ desconto por faixa de alcance das linhas quant (base = perc_fixo).
+//                        qualidade.modo 'linear' (UNACON): no lugar da escala, cada mês perde
+//                                     perc_variavel × (100 − nota)/100 do repasse (Σ dos meses do período).
 // Pontuação qualitativa:
 //   proporcional: fator = min(pct / limiar_cumprido, 1)  (menor_igual: limiar / pct)
 //   niveis:       cumprido 1 | parcial 0,5 | não cumprido 0  (faixas de avaliacaoCumprimento)
+//   binaria:      cumprido 1 | demais 0
 // Comissão: nota 'aceita' → fator = max(apurado, alcance_considerado/100) (null = 100).
 
 const { faixasEfetivas, nivelCumprimento } = require('./avaliacaoCumprimento');
@@ -49,9 +52,10 @@ function fatorProporcional(pct, meta) {
 
 const FATOR_NIVEL = { cumprido: 1, parcial: 0.5, nao_cumprido: 0 };
 
-function fatorNivel(pct, meta) {
+function fatorNivel(pct, meta, binaria = false) {
   if (pct == null) return null;
-  return FATOR_NIVEL[nivelCumprimento(pct, faixasEfetivas(meta))] ?? null;
+  const f = FATOR_NIVEL[nivelCumprimento(pct, faixasEfetivas(meta))] ?? null;
+  return binaria && f != null ? Math.floor(f) : f;
 }
 
 /** fator considerado pela comissão, ou null se não há nota aceita */
@@ -121,7 +125,10 @@ const mediaPonderada = (itens) => {
 };
 
 function linhasQualitativas(qual, pontuacao) {
-  const fn = pontuacao === 'niveis' ? fatorNivel : fatorProporcional;
+  const fn = {
+    niveis: fatorNivel,
+    binaria: (pct, meta) => fatorNivel(pct, meta, true),
+  }[pontuacao] || fatorProporcional;
   return qual.map((l) => {
     const pct = pctDe(l.realizado, l.base);
     const fator = fn(pct, l.meta);
@@ -170,7 +177,7 @@ function calcularFixaVariavel({
 }
 
 function calcularProducaoQualidade({
-  regra, quant, qual, parcelaFixa, valorMensal, aplicarProducao,
+  regra, quant, qual, qualPeriodo, parcelaFixa, parcelaVariavel, valorMensal, aplicarProducao, aplicarQualidade,
 }) {
   const prod = { faixas: [], abaixo: 0, ...(regra.producao || {}) };
   // limiar sem desconto (ex.: 85%) — usado pela comissão para "considerar cumprida"
@@ -182,11 +189,13 @@ function calcularProducaoQualidade({
     const baseLinha = somaPesos > 0 ? (parcelaFixa * (parseFloat(g.peso) || 0)) / somaPesos : 0;
     const pa = alcanceGrupo(g.linhas, false, limiar);
     const pc = alcanceGrupo(g.linhas, true, limiar);
-    const da = descDe(pa);
-    const dc = descDe(pc);
+    const informativo = !(parseFloat(g.peso) > 0);
+    const da = informativo ? null : descDe(pa);
+    const dc = informativo ? null : descDe(pc);
     return {
       ...g,
-      pendente: pa == null,
+      informativo,
+      pendente: pa == null && !informativo,
       base_linha: r2(baseLinha),
       alcance_apurado: r2(pa),
       alcance_comissao: r2(pc),
@@ -198,9 +207,19 @@ function calcularProducaoQualidade({
   });
   const linhasQual = linhasQualitativas(qual, regra.pontuacao);
 
+  const notaDe = (linhas, chave) => mediaPonderada(linhas.map((l) => ({ peso: l.peso, fator: l[chave] })));
+  const linear = regra.qualidade?.modo === 'linear';
+  const pv = valorMensal > 0 ? (parcelaVariavel / valorMensal) * 100 : 0;
+  // linear: mês sem nenhum lançamento perde a parcela inteira (nota 0)
+  const mesesQual = linear && aplicarQualidade ? (qualPeriodo || [qual]).map((q) => linhasQualitativas(q, regra.pontuacao)) : [];
+
   const resultado = (chave, chaveDesc) => {
-    const notaQual = mediaPonderada(linhasQual.map((l) => ({ peso: l.peso, fator: l[chave] })));
-    const percEscala = percentualPorEscala(notaQual, regra.escala, regra.abaixo);
+    const notaQual = notaDe(linhasQual, chave);
+    let percEscala = percentualPorEscala(notaQual, regra.escala, regra.abaixo);
+    if (linear) {
+      const perda = mesesQual.reduce((s, ls) => s + (pv * (100 - (notaDe(ls, chave) ?? 0))) / 100, 0);
+      percEscala = r2(100 - perda);
+    }
     const desconto = grupos.reduce((s, g) => s + g[chaveDesc], 0);
     const valorEscala = percEscala == null ? null : (valorMensal * percEscala) / 100;
     return {
@@ -228,13 +247,16 @@ function calcularProducaoQualidade({
  * @param {number} p.parcelaVariavel  R$
  * @param {number} [p.valorMensal]    R$ (producao_qualidade)
  * @param {boolean} [p.aplicarProducao=true]  producao_qualidade: false fora do mês de aplicação (só prévia)
+ * @param {Array<Array>} [p.qualPeriodo]  qualidade linear: linhas qual de cada mês do período (default [qual])
+ * @param {boolean} [p.aplicarQualidade=true]  qualidade linear: false fora do mês de aplicação (nota só prévia)
  */
 function calcular({
-  regra, quant = [], qual = [], parcelaFixa = 0, parcelaVariavel = 0, valorMensal = 0, aplicarProducao = true,
+  regra, quant = [], qual = [], qualPeriodo, parcelaFixa = 0, parcelaVariavel = 0, valorMensal = 0,
+  aplicarProducao = true, aplicarQualidade = true,
 }) {
   const r = regraEfetiva(regra);
   const args = {
-    regra: r, quant, qual, parcelaFixa, parcelaVariavel, valorMensal, aplicarProducao,
+    regra: r, quant, qual, qualPeriodo, parcelaFixa, parcelaVariavel, valorMensal, aplicarProducao, aplicarQualidade,
   };
   const out = r.modelo === 'producao_qualidade' ? calcularProducaoQualidade(args) : calcularFixaVariavel(args);
   return { modelo: r.modelo, pontuacao: r.pontuacao, ...out };
@@ -370,6 +392,43 @@ if (require.main === module) {
   // comissão aceita na linha de 60% → considera 85% → sem desconto após comissão
   t60[0].linhas[0].nota = { status_validacao: 'aceita' };
   assert.strictEqual(calcular({ ...base, quant: t60, qual: qualDR }).aposComissao.desconto_producao, 0);
+
+  // ── UNACON (009/2023, 6º TA): 95/5, eixos Quimio 62,5 / Cirurgias 37,5 / SADT 0, quadrimestral,
+  //    qualitativo binário linear: perde 5% × peso não atingido por mês
+  const UNA = {
+    modelo: 'producao_qualidade',
+    pontuacao: 'binaria',
+    qualidade: { modo: 'linear', periodo: 'quadrimestral' },
+    producao: { faixas: [{ min: 85, desc: 0 }, { min: 70, desc: 10 }], abaixo: 30, periodo: 'quadrimestral' },
+  };
+  const VU = 2600000;
+  const baseU = {
+    regra: UNA, valorMensal: VU, parcelaFixa: VU * 0.95, parcelaVariavel: VU * 0.05,
+  };
+  assert.strictEqual(fatorNivel(90, q100, true), 0);
+  // Q1/26 (jan–abr): Quimio 2839/1416; Cirurgias (onco+repar) 147/196 = 75% → −10% × 37,5% × 95% × VU
+  const q1 = [
+    { peso: 62.5, linhas: [L(2839, 1416, q100)] },
+    { peso: 37.5, linhas: [L(137, 176, q100), L(10, 20, q100)] },
+    { peso: 0, linhas: [L(null, 200, q100)] }, // SADT informativo, sem dado: não pendente
+  ];
+  const qualU = [10, 10, 10, 10, 10, 10, 40].map((peso) => ({ peso, ...L(100, 100, q100) }));
+  const u = calcular({ ...baseU, quant: q1, qual: qualU, qualPeriodo: [qualU, qualU, qualU, qualU] });
+  near(u.grupos[1].alcance_apurado, 75, 'cirurgias Q1');
+  near(u.apurado.desconto_producao, VU * 0.95 * 0.375 * 0.1, 'desconto cirurgias');
+  assert.strictEqual(u.apurado.perc_escala, 100);
+  assert.strictEqual(u.pendentes, 0);
+  // Aderência (peso 40) não atingida em 2 meses + CNES (10) parcial (binário = 0) em 1 → 5% × (0,4×2 + 0,1) = 4,5%
+  const semAd = qualU.map((l, i) => (i === 6 ? { ...l, realizado: 80 } : l));
+  const semCnes = qualU.map((l, i) => (i === 0 ? { ...l, realizado: 90 } : l));
+  const v = calcular({ ...baseU, quant: q1, qual: qualU, qualPeriodo: [semAd, semAd, semCnes, qualU] });
+  near(v.apurado.perc_escala, 95.5, 'perda linear');
+  near(v.apurado.valor_total, VU * 0.955 - VU * 0.95 * 0.375 * 0.1, 'repasse UNACON');
+  // comissão aceita na Aderência de um mês recupera 2% do repasse
+  const semAdJ = semAd.map((l, i) => (i === 6 ? { ...l, nota: { status_validacao: 'aceita' } } : l));
+  near(calcular({ ...baseU, quant: q1, qual: qualU, qualPeriodo: [semAdJ, semAd, semCnes, qualU] }).aposComissao.perc_escala, 97.5, 'comissão linear');
+  // fora do mês de aplicação: sem perda
+  assert.strictEqual(calcular({ ...baseU, quant: q1, qual: semAd, aplicarQualidade: false }).apurado.perc_escala, 100);
 
   console.log('percentualRecebimento: OK');
 }

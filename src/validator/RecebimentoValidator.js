@@ -8,6 +8,7 @@ const consultarRecebimento = Joi.object({
         .pattern(/^\d{4}-\d{2}$/)
         .required()
         .messages({ 'string.pattern.base': 'mes deve estar no formato YYYY-MM' }),
+    unidade: ID().optional().allow('', null),
 });
 
 const criarNota = Joi.object({
