@@ -88,6 +88,9 @@ module.exports = {
       fim: { type: Sequelize.DATE, allowNull: false },
       modalidade: { type: Sequelize.ENUM(...MODALIDADES), allowNull: false, defaultValue: 'plantao' },
       marcacao: { type: Sequelize.ENUM(...MARCACOES), allowNull: false, defaultValue: 'normal' },
+      // de quem é o posto: 'pma' = posto de médico da Prefeitura Municipal de Americana. Nas escalas do HM,
+      // RI+pma = médico PMA não foi/não confirmou; cobertura+pma = alguém cobriu esse posto.
+      vinculo: { type: Sequelize.ENUM('oss', 'pma'), allowNull: false, defaultValue: 'oss' },
       texto_bruto: Sequelize.STRING(500),
     });
     await queryInterface.sequelize.query(

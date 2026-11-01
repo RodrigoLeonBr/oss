@@ -48,6 +48,32 @@ function assinaturaNome(nome) {
   return `${t[0]}|${t.slice(1, -1).map((p) => p[0]).join('')}|${t[t.length - 1]}`;
 }
 
+function distancia(a, b) {
+  let ant = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i += 1) {
+    const cur = [i];
+    for (let j = 1; j <= b.length; j += 1) {
+      cur[j] = Math.min(ant[j] + 1, cur[j - 1] + 1, ant[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    }
+    ant = cur;
+  }
+  return ant[b.length];
+}
+
+/**
+ * Grafia diferente da mesma pessoa: mesmo primeiro nome e (até 2 letras de diferença, ou todas as palavras
+ * do nome curto presentes no longo). "Maria Elena Cardoso Halin" ~ "Maria Elena Cardozo de Halim".
+ */
+function nomeParecido(a, b) {
+  const tok = (n) => normalizaNome(n).split(' ').filter((p) => p && !['DA', 'DE', 'DO', 'DAS', 'DOS', 'E'].includes(p));
+  const [x, y] = [tok(a), tok(b)];
+  if (!x.length || !y.length || x[0] !== y[0]) return false;
+  if (distancia(x.join(' '), y.join(' ')) <= 2) return true;
+  const [curto, longo] = x.length <= y.length ? [x, y] : [y, x];
+  // ponytail: contido exige >= 2 palavras; "Isabela" sozinha casaria com qualquer Isabela
+  return curto.length >= 2 && curto.every((p) => longo.some((q) => q === p || distancia(p, q) <= 1));
+}
+
 /** Chave única do profissional; sem registro, o nome normalizado faz o papel do número. */
 function chaveProfissional({ nome, conselho, registro, uf }) {
   const num = String(registro || '').replace(/\D/g, '');
@@ -57,7 +83,9 @@ function chaveProfissional({ nome, conselho, registro, uf }) {
   return { conselho: 'SEM_REGISTRO', registro_numero: normalizaNome(nome).slice(0, 120), registro_uf: '' };
 }
 
-module.exports = { normalizaNome, nomeCanonico, assinaturaNome, chaveProfissional, CATEGORIA_POR_CONSELHO };
+module.exports = {
+  normalizaNome, nomeCanonico, assinaturaNome, nomeParecido, chaveProfissional, CATEGORIA_POR_CONSELHO,
+};
 
 if (require.main === module) {
   const assert = require('assert');
@@ -71,6 +99,11 @@ if (require.main === module) {
   eq(assinaturaNome('Jose H. Inamonico'), assinaturaNome('JOSE HUGO INAMONICO'));
   eq(assinaturaNome('Gabriel S. P. De Souza'), assinaturaNome('GABRIEL STIVAL PAMFILIO DE SOUZA'));
   assert.notStrictEqual(assinaturaNome('Matheus X. M. de Melo'), assinaturaNome('Matheus H. R. Batista'));
+  assert(nomeParecido('Maria Elena Cardoso Halin', 'MARIA ELENA CARDOZO DE HALIM'));
+  assert(nomeParecido('Jose Hugo Inamonicio', 'JOSE HUGO INAMONICO'));
+  assert(nomeParecido('Isabela Garcia', 'Isabela Garcia Abuissa Assad'));
+  assert(!nomeParecido('Isabela Garcia Abuissa Assad', 'Isadora Garcia Abuissa Assad'));
+  assert(!nomeParecido('Matheus H. R. Batista', 'Matheus X. M. de Melo'));
   eq(chaveProfissional({ conselho: 'CRM', registro: '275.195', uf: 'sp' }), { conselho: 'CRM', registro_numero: '275195', registro_uf: 'SP' });
   eq(chaveProfissional({ nome: 'João Silva', conselho: null, registro: '' }).conselho, 'SEM_REGISTRO');
   eq(chaveProfissional({ nome: 'João Silva' }).registro_numero, 'JOAO SILVA');

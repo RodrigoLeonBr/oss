@@ -7,7 +7,7 @@ const path = require('path');
 const { randomUUID } = require('crypto');
 const db = require('../models');
 const {
-  normalizaNome, nomeCanonico, assinaturaNome, chaveProfissional, CATEGORIA_POR_CONSELHO,
+  normalizaNome, nomeCanonico, assinaturaNome, nomeParecido, chaveProfissional, CATEGORIA_POR_CONSELHO,
 } = require('../helper/escalaNormaliza');
 
 const SIGLA = { hm: 'HMA', upa_cillos: 'UPA-CIL', pa_zanaga: 'UPA-ZAN', unacon: 'UNACON' };
@@ -51,11 +51,22 @@ async function montarResolvedor(arquivos) {
     const k = chaveProfissional(p);
     if (p.nome && k.conselho !== 'SEM_REGISTRO') add(normalizaNome(p.nome), chaveStr(k));
   }));
+  // 3º critério: grafia parecida (erro de digitação/OCR), também só com candidato único
+  const cache = new Map();
+  const parecido = (nome) => {
+    if (!cache.has(nome)) {
+      const chaves = new Set();
+      porNome.forEach((ks, conhecido) => { if (nomeParecido(nome, conhecido)) ks.forEach((c) => chaves.add(c)); });
+      cache.set(nome, chaves.size === 1 ? chaves : null);
+    }
+    return cache.get(nome);
+  };
   return (p) => {
     const k = chaveProfissional(p);
     if (k.conselho !== 'SEM_REGISTRO') return k;
     const unico = (m, k) => (m.get(k)?.size === 1 ? m.get(k) : null);
-    const achados = unico(porNome, normalizaNome(p.nome)) || unico(porAssinatura, assinaturaNome(p.nome));
+    const achados = unico(porNome, normalizaNome(p.nome)) || unico(porAssinatura, assinaturaNome(p.nome))
+      || parecido(p.nome);
     if (achados) {
       const [conselho, registro_numero, registro_uf] = [...achados][0].split('|');
       return { conselho, registro_numero, registro_uf };
@@ -128,9 +139,9 @@ async function carregarArquivo({ arquivo: a, plantoes }, unidades, ids, setores,
       const sid = await setorId(unidadeId, (p.setor || a.assunto || 'geral').slice(0, 150), area, setores, t);
       await q(
         `INSERT INTO tb_escala_plantoes (arquivo_id, unidade_id, setor_id, profissional_id, data, inicio, fim,
-           modalidade, marcacao, texto_bruto) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           modalidade, marcacao, vinculo, texto_bruto) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [arquivoId, unidadeId, sid, p.nome ? ids.get(chaveStr(resolver(p))) : null, p.data, p.inicio, p.fim,
-          p.modalidade || 'plantao', p.marcacao || 'normal', (p.texto || '').slice(0, 500)], t,
+          p.modalidade || 'plantao', p.marcacao || 'normal', p.vinculo || 'oss', (p.texto || '').slice(0, 500)], t,
       );
     }
   });
@@ -151,6 +162,14 @@ async function main() {
   await q(`DELETE p2 FROM tb_escala_plantoes p1 JOIN tb_escala_plantoes p2
            ON p2.unidade_id = p1.unidade_id AND p2.profissional_id = p1.profissional_id
           AND p2.inicio = p1.inicio AND p2.fim = p1.fim AND p2.arquivo_id <> p1.arquivo_id AND p2.plantao_id > p1.plantao_id`);
+  // médico PMA = titular de posto da Prefeitura em alguma escala (RI+PMA ou PMA; quem só cobre não conta).
+  // Plantão dele sem PMA marcado (cor sem legenda, "(CO)" sem cor) é posto PMA também — decidido pelo registro.
+  await q(`UPDATE tb_escala_plantoes p
+           JOIN (SELECT DISTINCT profissional_id, unidade_id FROM tb_escala_plantoes
+                 WHERE vinculo = 'pma' AND marcacao IN ('normal', 'riscado')) pma
+             ON pma.profissional_id = p.profissional_id AND pma.unidade_id = p.unidade_id
+           SET p.vinculo = 'pma'
+           WHERE p.vinculo = 'oss' AND p.marcacao IN ('normal', 'riscado', 'cobertura')`);
   // SEM_REGISTRO que passou a casar com alguém com registro fica órfão
   await q(`DELETE pr FROM tb_escala_profissionais pr LEFT JOIN tb_escala_plantoes p USING (profissional_id)
            WHERE pr.conselho = 'SEM_REGISTRO' AND p.plantao_id IS NULL`);
