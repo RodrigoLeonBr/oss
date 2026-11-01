@@ -55,3 +55,6 @@ seed-credenciais.local.json
 /2025/
 /2026/
 /prestacao-vault/
+
+# ponte/log do MCP oss-relatorios
+/claude-bridge/

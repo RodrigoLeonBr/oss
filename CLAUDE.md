@@ -49,6 +49,8 @@ Regras modulares em `.claude/rules/` (1 tópico por arquivo). As sem `paths:` ca
 
 Procedimentos sob demanda em `.claude/skills/` (ex.: `release`). Slash commands em `.claude/commands/` (ex.: `/review`). Notas pessoais em `CLAUDE.local.md` (fora do git).
 
+MCP/ponte do chat Claude (somente leitura, `src/claude/`, usuários `claude_ro`/`claude_sql`, roda no host): `docs/api-claude-chat.md`.
+
 Detalhe longo (lido sob demanda, sem `@`): `docs/PRD_v2.md`, `docs/ARQUITETURA_v2.md`, `docs/banco_v2.md`, `docs/erd_v2.md`, `docs/avaliacao-cumprimento-e-relatorios.md`, `docs/Manual-Operacao-Dominio-Contratual.md`, `docs/ponte-producao.md` (comparação informado × produção SIA/SIH).
 
 > O cabeçalho "Auto-generated from .context/docs" vem do pipeline `@dotcontext/cli`; este arquivo foi reescrito à mão. Se regenerar, preserve estas seções.

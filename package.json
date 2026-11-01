@@ -25,13 +25,17 @@
     "docker:prod:build": "docker compose -f docker-compose.prod.yml build",
     "docker:prod:down": "docker compose -f docker-compose.prod.yml down",
     "docker:prod:migrate": "docker compose -f docker-compose.prod.yml exec app npm run db:migrate",
-    "docker:prod:seed": "docker compose -f docker-compose.prod.yml exec app npm run db:seed"
+    "docker:prod:seed": "docker compose -f docker-compose.prod.yml exec app npm run db:seed",
+    "mcp": "node src/claude/mcp/server.js",
+    "ponte": "node src/claude/ponte/vigia.js",
+    "snapshots": "node src/claude/ponte/snapshots.js"
   },
   "author": "Kazi Naimul Hoque (Aoyan)",
   "license": "MIT",
   "private": true,
   "dependencies": {
     "@dotcontext/cli": "^0.9.2",
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "bcryptjs": "^2.4.3",
     "compression": "^1.8.1",
     "cors": "^2.8.5",
@@ -53,7 +57,8 @@
     "sequelize-cli": "^6.2.0",
     "socket.io": "^4.4.1",
     "winston": "^3.3.3",
-    "winston-daily-rotate-file": "^4.5.5"
+    "winston-daily-rotate-file": "^4.5.5",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@babel/cli": "^7.15.7",
