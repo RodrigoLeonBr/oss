@@ -32,11 +32,8 @@ function areaDoArquivo(arq, plantoes) {
 
 // Escala só com nome (PDF sem CRM): casa com quem já tem registro pelo nome normalizado e, senão,
 // pela assinatura ("Jose H. Inamonico" = "JOSE HUGO INAMONICO") — só quando o candidato é único.
-async function montarResolvedor(arquivos) {
-  const [conhecidos] = await q(
-    `SELECT a.nome_normalizado, pr.conselho, pr.registro_numero, pr.registro_uf FROM tb_escala_profissional_alias a
-     JOIN tb_escala_profissionais pr USING (profissional_id) WHERE pr.conselho <> 'SEM_REGISTRO'`,
-  );
+// Só os arquivos (não o banco): toda carga lê o vault inteiro, e CRM corrigido não pode herdar nome antigo.
+function montarResolvedor(arquivos) {
   const porNome = new Map();
   const porAssinatura = new Map();
   const add = (nome, chave) => {
@@ -46,7 +43,6 @@ async function montarResolvedor(arquivos) {
       m.get(k).add(chave);
     });
   };
-  conhecidos.forEach((c) => add(c.nome_normalizado, chaveStr(c)));
   arquivos.forEach(({ plantoes }) => plantoes.forEach((p) => {
     const k = chaveProfissional(p);
     if (p.nome && k.conselho !== 'SEM_REGISTRO') add(normalizaNome(p.nome), chaveStr(k));
@@ -97,6 +93,8 @@ async function carregarProfissionais(arquivos, resolver) {
   const [linhas] = await q('SELECT profissional_id, conselho, registro_numero, registro_uf FROM tb_escala_profissionais');
   const ids = new Map(linhas.map((l) => [chaveStr(l), l.profissional_id]));
 
+  // grafias saem só dos arquivos: refaz tudo (alias antigo de CRM corrigido não pode sobrar)
+  await q('DELETE FROM tb_escala_profissional_alias');
   const aliases = [];
   porChave.forEach((p, s) => p.variantes.forEach((_, bruto) => aliases.push([ids.get(s), bruto, normalizaNome(bruto)])));
   for (const a of aliases) {
@@ -153,7 +151,7 @@ async function main() {
   const arquivos = lerJsons(dir);
   const [us] = await q('SELECT unidade_id, sigla FROM tb_unidades WHERE deleted_at IS NULL');
   const unidades = Object.fromEntries(us.map((u) => [u.sigla, u.unidade_id]));
-  const resolver = await montarResolvedor(arquivos);
+  const resolver = montarResolvedor(arquivos);
   const ids = await carregarProfissionais(arquivos, resolver);
   const setores = new Map();
   for (const arq of arquivos) await carregarArquivo(arq, unidades, ids, setores, resolver);
