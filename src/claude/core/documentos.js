@@ -322,6 +322,7 @@ const CONTRATO_ACERVO = {
     '025/2025': 'dona_rosa',
     drosa: 'dona_rosa',
     zanaga: 'zanaga',
+    '517/2025': 'zanaga',
     '002/2025': 'zanaga',
 };
 const contratoAcervo = (c) => {

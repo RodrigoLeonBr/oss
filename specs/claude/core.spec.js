@@ -68,7 +68,7 @@ describe('claude/core: banco e acervo', function () {
             r.dados.map((c) => {
                 return c.numero;
             }),
-        ).to.include.members(['009/2023', '066/2024', '002/2025']);
+        ).to.include.members(['009/2023', '066/2024', '517/2025']);
     });
     it('cumprimento_metas aceita apelido 001/2023', async () => {
         const r = await executar('cumprimento_metas', {

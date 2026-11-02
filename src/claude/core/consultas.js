@@ -30,7 +30,8 @@ const ALIAS_CONTRATO = {
     dona_rosa: 'UPA-DR',
     'dona rosa': 'UPA-DR',
     drosa: 'UPA-DR',
-    '002/2025': 'UPA-ZAN',
+    '517/2025': 'UPA-ZAN',
+    '002/2025': 'UPA-ZAN', // chamamento PMA 002/2025 (número antigo no banco)
     zanaga: 'UPA-ZAN',
 };
 const ALIAS_UNIDADE = {
@@ -135,7 +136,7 @@ const idEscopo = z
 const contrato = z
     .string()
     .describe(
-        'Contrato: número do banco (009/2023, 066/2024, 002/2025) ou apelido (001/2023, dona_rosa, zanaga)',
+        'Contrato: número do banco (009/2023, 066/2024, 517/2025) ou apelido (001/2023, dona_rosa, zanaga)',
     );
 const ym = z
     .string()
