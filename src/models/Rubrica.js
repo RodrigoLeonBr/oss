@@ -10,6 +10,7 @@ class Rubrica extends Model {
         codigo: { type: DataTypes.STRING(20), allowNull: false },
         nome: { type: DataTypes.STRING(200), allowNull: false },
         nivel: { type: DataTypes.ENUM('grupo', 'categoria'), allowNull: false },
+        natureza: { type: DataTypes.ENUM('receita', 'despesa'), allowNull: false, defaultValue: 'despesa' },
         ativo: { type: DataTypes.TINYINT(1), allowNull: false, defaultValue: 1 },
       },
       {

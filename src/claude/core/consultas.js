@@ -874,31 +874,43 @@ const ferramentas = [
     {
         nome: 'execucao_financeira',
         descricao:
-            'Receitas e despesas por rubrica (orçado × realizado) somadas no período, de tb_execucao_financeira.',
+            'Receitas e despesas realizadas por rubrica (demonstrativo financeiro da prestação de contas) somadas no período, de tb_execucao_financeira. Filtra por unidade e conta bancária (custeio/investimento/provisao).',
         schema: {
             contrato,
             ano,
             periodo,
             mes,
-            unidade: z.string().optional().describe('Ignorado: rubricas são por contrato'),
+            unidade: z.string().optional(),
+            conta: z.enum(['custeio', 'investimento', 'provisao']).optional(),
         },
         async executar(p) {
             const c = await contratoPor(p.contrato);
+            const u = p.unidade ? await unidadePor(p.unidade) : null;
             const j = janela(p.ano, p.periodo, p.mes);
             const linhas = await q(
-                `SELECT r.codigo, r.nome AS rubrica, r.nivel, SUM(e.valor_orcado) AS orcado, SUM(e.valor_realizado) AS realizado,
+                `SELECT r.codigo, r.nome AS rubrica, r.natureza, SUM(e.valor_orcado) AS orcado, SUM(e.valor_realizado) AS realizado,
                 SUM(e.valor_realizado) - SUM(e.valor_orcado) AS variacao
          FROM tb_execucao_financeira e JOIN tb_rubricas r USING (rubrica_id)
          WHERE r.contrato_id = :id AND e.mes_referencia BETWEEN :ini AND :fim
-         GROUP BY r.rubrica_id ORDER BY r.codigo`,
-                { id: c.contrato_id, ini: j.inicio, fim: j.fim },
+           AND (:uid IS NULL OR e.unidade_id = :uid) AND (:conta IS NULL OR e.conta = :conta)
+         GROUP BY r.rubrica_id ORDER BY r.natureza DESC, r.codigo`,
+                {
+                    id: c.contrato_id,
+                    ini: j.inicio,
+                    fim: j.fim,
+                    uid: u ? u.unidade_id : null,
+                    conta: p.conta || null,
+                },
             );
             return {
-                titulo: `Execução financeira: contrato ${c.numero}, ${j.rotulo}`,
+                titulo: `Execução financeira: contrato ${c.numero}${u ? ` ${u.sigla}` : ''}${
+                    p.conta ? ` (${p.conta})` : ''
+                }, ${j.rotulo}`,
                 dados: linhas,
                 tabelas: [
                     {
                         colunas: [
+                            ['natureza', 'Natureza'],
                             ['codigo', 'Código'],
                             ['rubrica', 'Rubrica'],
                             ['orcado', 'Orçado', 'moeda'],
@@ -909,9 +921,9 @@ const ferramentas = [
                     },
                 ],
                 notas: linhas.length
-                    ? p.unidade
-                        ? ['Rubricas são por contrato; o filtro de unidade foi ignorado.']
-                        : []
+                    ? [
+                          'Transferências entre contas e saldos: tb_movimentacao_conta e tb_saldo_conta.',
+                      ]
                     : ['Sem dados em tb_execucao_financeira para o período.'],
             };
         },
