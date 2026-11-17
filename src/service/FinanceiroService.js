@@ -432,10 +432,10 @@ async function detalhe(e, ossIdFiltro) {
     const j = janelaCivil(e.periodo);
     const we = whereEscopo({ ...e, contratoId }, ossIdFiltro, 'x');
     const rubricas = await q(
-        `SELECT r.rubrica_id, r.codigo, r.nome, r.nivel, r.natureza, rp.codigo AS pai, gf.nome AS grupo_canonico
+        `SELECT r.rubrica_id, r.codigo, r.nome, r.nivel, r.natureza, r.ativo, rp.codigo AS pai, gf.nome AS grupo_canonico
            FROM tb_rubricas r LEFT JOIN tb_rubricas rp ON rp.rubrica_id = r.rubrica_pai_id
            LEFT JOIN tb_grupo_financeiro gf ON gf.grupo_financeiro_id = COALESCE(r.grupo_financeiro_id, rp.grupo_financeiro_id)
-          WHERE r.contrato_id = ? AND r.ativo = 1 ORDER BY r.natureza DESC, r.codigo`,
+          WHERE r.contrato_id = ? ORDER BY r.natureza DESC, r.codigo`,
         [contratoId],
     );
     const valores = await q(
@@ -465,7 +465,8 @@ async function detalhe(e, ossIdFiltro) {
         }
     });
     const linhas = rubricas.map((r) => {
-        const ids = r.nivel === 'grupo' ? filhas.get(r.codigo) || [] : [r.rubrica_id];
+        // grupo = valores lançados nele (histórico por grupo) + categorias filhas
+        const ids = r.nivel === 'grupo' ? [r.rubrica_id, ...(filhas.get(r.codigo) || [])] : [r.rubrica_id];
         const vals = meses.map((m) => {
             return reais(ids.reduce((s, id) => {
                 return s + ((porRubrica.get(id) || {})[m] || 0);
@@ -480,7 +481,13 @@ async function detalhe(e, ossIdFiltro) {
         };
     });
     const observacoes = await listarObservacoes({ contratoId, ini: j.inicio, fim: j.fim }, ossIdFiltro);
-    return { janela: j, contrato_id: contratoId, meses, linhas, observacoes };
+    // plano inativo (histórico) só aparece onde tem valor no período
+    const visiveis = linhas.filter((l) => {
+        return l.ativo || l.valores.some((v) => {
+            return v !== 0;
+        });
+    });
+    return { janela: j, contrato_id: contratoId, meses, linhas: visiveis, observacoes };
 }
 
 // ───────────────────────── grade (lançamento manual) ─────────────────────────
