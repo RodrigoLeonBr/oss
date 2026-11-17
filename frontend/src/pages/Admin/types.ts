@@ -19,7 +19,7 @@ export const PERFIL_LABELS: Record<Perfil, string> = {
 }
 
 export const MODULOS_LIST = [
-  'dashboard', 'entrada_mensal', 'aprovacao', 'relatorios',
+  'dashboard', 'entrada_mensal', 'aprovacao', 'relatorios', 'financeiro',
   'perfil_oss', 'oss', 'contratos', 'unidades',
   'indicadores', 'metas', 'usuarios', 'permissoes',
 ] as const
@@ -29,6 +29,7 @@ export const MODULO_LABELS: Record<string, string> = {
   entrada_mensal: 'Entrada Mensal',
   aprovacao:      'Aprovação',
   relatorios:     'Relatórios CMS',
+  financeiro:     'Financeiro',
   perfil_oss:     'Perfil OSS',
   oss:            'Organizações Sociais',
   contratos:      'Contratos de Gestão',

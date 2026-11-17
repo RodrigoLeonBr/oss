@@ -11,7 +11,7 @@ RUN npm run build
 # Stage 2: API Node + dist do frontend servido em produção (ver src/app.js)
 FROM node:22-alpine
 WORKDIR /usr/src/app
-RUN apk add --no-cache dumb-init wget su-exec
+RUN apk add --no-cache dumb-init wget su-exec python3 py3-openpyxl
 
 ENV NODE_ENV=production
 

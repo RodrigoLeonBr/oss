@@ -90,8 +90,16 @@ DINHEIRO = re.compile(r'^-?[\d.]+,\d{2}$')
 
 
 def ler_pdf(p):
-    texto = subprocess.run(['pdftotext', '-table', '-enc', 'UTF-8', str(p), '-'],
-                           capture_output=True, check=True).stdout.decode('utf-8')
+    # Precisa do pdftotext do xpdf 4 (-table). O do poppler (container Alpine) não tem -table e o -layout
+    # embaralha as linhas deste demonstrativo — ali, importar o .xlsx.
+    try:
+        r = subprocess.run(['pdftotext', '-table', '-enc', 'UTF-8', str(p), '-'], capture_output=True)
+    except FileNotFoundError:
+        raise SystemExit(f'{p.name}: pdftotext não instalado — importe o .xlsx')
+    if r.returncode != 0:
+        raise SystemExit(f'{p.name}: pdftotext sem suporte a -table (xpdf 4) — importe o .xlsx. '
+                         f'{r.stderr.decode(errors="replace")[-200:]}')
+    texto = r.stdout.decode('utf-8')
     out = {'aba': p.stem, 'saldo_anterior': None, 'receitas': [], 'despesas': [], 'grupos': [],
            'total_receitas': None, 'total_despesas': None, 'movimentos': [], 'saldo': None}
     secao = n = None

@@ -25,6 +25,7 @@ const PermissoesMatrix   = lazy(() => import('./pages/Admin/PermissoesMatrix'))
 const PonteProducaoPage  = lazy(() => import('./pages/Producao/PonteProducaoPage'))
 const MapaProducaoPage   = lazy(() => import('./pages/Producao/MapaProducaoPage'))
 const RecebimentoPage    = lazy(() => import('./pages/Recebimento/RecebimentoPage'))
+const FinanceiroPage     = lazy(() => import('./pages/Financeiro/FinanceiroPage'))
 
 const Spinner = () => (
   <div className="flex h-screen items-center justify-center bg-canvas">
@@ -71,6 +72,7 @@ export default function App() {
         <Route path="/entrada-mensal/:unidadeId" element={<Guarded modulo="entrada_mensal"><EntradaMensalList /></Guarded>} />
         <Route path="/aprovacao"               element={<Guarded modulo="aprovacao"><AprovacaoPage /></Guarded>} />
         <Route path="/recebimento"             element={<Guarded modulo="entrada_mensal"><RecebimentoPage /></Guarded>} />
+        <Route path="/financeiro"              element={<Guarded modulo="financeiro"><FinanceiroPage /></Guarded>} />
         <Route path="/relatorios"              element={<Guarded modulo="relatorios"><RelatoriosCMSPage /></Guarded>} />
         <Route path="/ponte-producao"          element={<Guarded modulo="relatorios"><PonteProducaoPage /></Guarded>} />
         <Route path="/mapa-producao"           element={<Guarded modulo="relatorios"><MapaProducaoPage /></Guarded>} />

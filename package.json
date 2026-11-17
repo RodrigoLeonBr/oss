@@ -52,6 +52,7 @@
     "node-cron": "^3.0.0",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.0",
+    "pizzip": "^3.1.7",
     "redis": "^4.0.6",
     "sequelize": "^6.6.5",
     "sequelize-cli": "^6.2.0",

@@ -2,7 +2,9 @@
 // tb_movimentacao_conta e tb_saldo_conta.
 // Uso: node src/db/carregaFinanceiro.js <numero-contrato> <arquivo.financeiro.json>...   (ex.: 009/2023)
 //      vários JSON = todas as contas do contrato no mesmo período (transferências são casadas entre eles)
+//      node src/db/carregaFinanceiro.js <numero-contrato> --dry-run <json>...   (valida e compara com o banco, não grava)
 //      node src/db/carregaFinanceiro.js --self-check
+// Também usado pela API (FinanceiroService): carregar(numero, [objetoJson | caminho], { dryRun }) devolve o resumo.
 // Idempotente: apaga e regrava (unidade, conta, mês) presentes no arquivo. Só grava se tudo fechar:
 // subcontas = grupo, grupos = total, receitas = total, saldo do mês reconciliado e transferências casadas.
 
@@ -307,7 +309,9 @@ function selfCheck() {
     console.log('OK');
 }
 
-async function carregar(numeroContrato, arquivos) {
+const DRY_RUN = Symbol('dry-run');
+
+async function carregar(numeroContrato, arquivos, { dryRun = false } = {}) {
     const q = (sql, replacements, transaction) => {
         return db.sequelize.query(sql, { replacements, transaction, logging: false });
     };
@@ -348,7 +352,7 @@ async function carregar(numeroContrato, arquivos) {
     );
 
     const abas = arquivos.flatMap((arq) => {
-        const json = JSON.parse(fs.readFileSync(arq, 'utf8'));
+        const json = typeof arq === 'string' ? JSON.parse(fs.readFileSync(arq, 'utf8')) : arq;
         return json.abas.map((a) => {
             return { ...processaAba(a, siglaDe), arquivo: json.arquivo };
         });
@@ -362,6 +366,80 @@ async function carregar(numeroContrato, arquivos) {
         vistas.add(k);
     });
     casaTransferencias(abas);
+
+    const meses = [...new Set(abas.flatMap((a) => {
+        return a.meses;
+    }))];
+    const [fechados] = await q(
+        `SELECT DATE_FORMAT(mes_referencia, '%Y-%m-%d') AS mes FROM tb_fechamento_financeiro
+          WHERE contrato_id = ? AND mes_referencia IN (?)`,
+        [contrato.contrato_id, meses],
+    );
+    if (fechados.length) {
+        throw new Error(`mês fechado: ${fechados.map((f) => {
+            return f.mes;
+        }).join(', ')} — reabra antes de importar`);
+    }
+
+    // situação atual no banco, para a prévia mostrar o que muda (receita, despesa e saldo por unidade/conta/mês)
+    const atual = new Map();
+    const [linhasAtuais] = await q(
+        `SELECT u.sigla, x.conta, DATE_FORMAT(x.mes_referencia, '%Y-%m-%d') AS mes, x.campo, x.valor FROM (
+           SELECT e.unidade_id, e.conta, e.mes_referencia, r.natureza AS campo, SUM(e.valor_realizado) AS valor
+             FROM tb_execucao_financeira e JOIN tb_rubricas r ON r.rubrica_id = e.rubrica_id
+            GROUP BY e.unidade_id, e.conta, e.mes_referencia, r.natureza
+           UNION ALL
+           SELECT unidade_id, conta, mes_referencia, 'saldo', saldo FROM tb_saldo_conta
+         ) x JOIN tb_unidades u ON u.unidade_id = x.unidade_id
+        WHERE u.contrato_id = ? AND x.mes_referencia IN (?)`,
+        [contrato.contrato_id, meses],
+    );
+    linhasAtuais.forEach((l) => {
+        atual.set(`${l.sigla}|${l.conta}|${l.mes}|${l.campo}`, cent(Number(l.valor)));
+    });
+    const diferencas = [];
+    abas.forEach((a) => {
+        a.meses.forEach((m, i) => {
+            const novo = {
+                receita: a.receitas.reduce((s, l) => {
+                    return s + cent(l.valores[i]);
+                }, 0),
+                despesa: a.despesas.reduce((s, l) => {
+                    return s + cent(l.valores[i]);
+                }, 0),
+                saldo: cent(a.saldo[i]),
+            };
+            Object.entries(novo).forEach(([campo, v]) => {
+                const antes = atual.get(`${a.unidade}|${a.conta}|${m}|${campo}`);
+                if ((antes ?? 0) !== v) {
+                    diferencas.push({
+                        unidade: a.unidade,
+                        conta: a.conta,
+                        mes: m,
+                        campo,
+                        atual: antes == null ? null : antes / 100,
+                        novo: v / 100,
+                    });
+                }
+            });
+        });
+    });
+
+    const resumo = {
+        contrato: numeroContrato,
+        dryRun,
+        abas: abas.map((a) => {
+            return {
+                unidade: a.unidade,
+                conta: a.conta,
+                meses: a.meses,
+                saldoInicial: a.saldoInicial / 100,
+                saldoFinal: a.saldo[a.saldo.length - 1],
+                avisos: a.avisos,
+            };
+        }),
+        diferencas,
+    };
 
     await db.sequelize.transaction(async (t) => {
         // plano de contas: grupos e depois categorias (pai), nomes da primeira aba que trouxer o código
@@ -511,25 +589,44 @@ async function carregar(numeroContrato, arquivos) {
             'INSERT INTO tb_saldo_conta (unidade_id, conta, mes_referencia, saldo, fonte)',
             saldos,
         );
-        console.log(
-            `${rubricas.size} rubricas, ${exec.length} lançamentos, ${movs.length} movimentações, ${saldos.length} saldos`,
-        );
+        resumo.totais = {
+            rubricas: rubricas.size,
+            lancamentos: exec.length,
+            movimentacoes: movs.length,
+            saldos: saldos.length,
+        };
+        if (dryRun) {
+            throw DRY_RUN; // desfaz a transação: a prévia exercita o mesmo caminho da gravação
+        }
+    }).catch((e) => {
+        if (e !== DRY_RUN) {
+            throw e;
+        }
     });
-    abas.forEach((a) => {
-        console.log(
-            `  ${a.unidade} ${a.conta}: saldo inicial ${a.saldoInicial / 100}, final ${
-                a.saldo[a.saldo.length - 1]
-            }`,
-        );
+    return resumo;
+}
+
+function imprime(r) {
+    const t = r.totais;
+    console.log(`${r.dryRun ? '[dry-run] ' : ''}${t.rubricas} rubricas, ${t.lancamentos} lançamentos, `
+        + `${t.movimentacoes} movimentações, ${t.saldos} saldos; ${r.diferencas.length} diferenças contra o banco`);
+    r.abas.forEach((a) => {
+        console.log(`  ${a.unidade} ${a.conta}: saldo inicial ${a.saldoInicial}, final ${a.saldoFinal}`);
         a.avisos.forEach((x) => {
             return console.log(`    aviso: ${x}`);
         });
     });
-    await db.sequelize.close();
+    r.diferencas.slice(0, 30).forEach((d) => {
+        console.log(`  ≠ ${d.mes} ${d.unidade}/${d.conta} ${d.campo}: ${d.atual} → ${d.novo}`);
+    });
 }
 
 if (require.main === module) {
-    const [contrato, ...arqs] = process.argv.slice(2);
+    const [contrato, ...resto] = process.argv.slice(2);
+    const dryRun = resto.includes('--dry-run');
+    const arqs = resto.filter((a) => {
+        return a !== '--dry-run';
+    });
     if (contrato === '--self-check') {
         selfCheck();
     } else if (!arqs.length) {
@@ -542,9 +639,17 @@ if (require.main === module) {
             arqs.map((a) => {
                 return path.resolve(a);
             }),
-        ).catch((e) => {
-            console.error(e.message);
-            process.exit(1);
-        });
+            { dryRun },
+        )
+            .then(imprime)
+            .catch((e) => {
+                console.error(e.message);
+                process.exitCode = 1;
+            })
+            .finally(() => {
+                return db.sequelize.close();
+            });
     }
 }
+
+module.exports = { carregar, processaAba, classifica };

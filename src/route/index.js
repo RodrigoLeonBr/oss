@@ -13,6 +13,7 @@ const permissaoRoute = require('./permissaoRoute');
 const relatorioCmsRoute = require('./relatorioCmsRoute');
 const mapaProducaoRoute = require('./mapaProducaoRoute');
 const ponteProducaoRoute = require('./ponteProducaoRoute');
+const financeiroRoute = require('./financeiroRoute');
 
 const router = express.Router();
 
@@ -35,6 +36,7 @@ const defaultRoutes = [
     { path: '/relatorios', route: relatorioCmsRoute },
     { path: '/mapa-producao', route: mapaProducaoRoute },
     { path: '/ponte-producao', route: ponteProducaoRoute },
+    { path: '/financeiro', route: financeiroRoute },
 ];
 
 defaultRoutes.forEach((route) => {
