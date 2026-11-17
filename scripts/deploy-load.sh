@@ -27,4 +27,8 @@ done
 echo "==> migrate"
 docker compose -f "$COMPOSE" exec -T api npm run db:migrate
 
+# seeds idempotentes de referência (rodar de novo não duplica)
+echo "==> seed grupos financeiros canônicos"
+docker compose -f "$COMPOSE" exec -T api npx sequelize-cli db:seed --seed 20261117100000-seed-grupos-financeiros.js
+
 echo "OK -> app em http://<SERVIDOR>:${WEB_PORT:-4000}"
