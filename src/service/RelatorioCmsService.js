@@ -3,6 +3,10 @@ const db = require('../models');
 const { janelaDoPeriodo, janelaUltimosMeses } = require('../helper/periodoRelatorio');
 const { calcularStatusCumprimento, calcularFaixaProducao } = require('./AcompanhamentoService');
 const { assertContratoNoEscopoOSS, assertUnidadeNoEscopoOSS } = require('../helper/ossScopeHelper');
+const {
+  regraEfetiva, fatorProporcional, fatorNivel, percentualPorEscala,
+} = require('../helper/percentualRecebimento');
+const { faixasEfetivas } = require('../helper/avaliacaoCumprimento');
 
 /** Monta os `where` de unidade/contrato conforme escopo + filtro de OSS. */
 function buildEscopoWhere({ escopo, contratoId, unidadeId }, ossIdFiltro) {
@@ -14,8 +18,32 @@ function buildEscopoWhere({ escopo, contratoId, unidadeId }, ossIdFiltro) {
   return { unidadeWhere, contratoWhere };
 }
 
-/** Indicadores ativos no escopo, com unidade+contrato (e metas se pedido). */
-async function fetchIndicadoresNoEscopo(params, ossIdFiltro, { comMetas = false } = {}) {
+const mesIdx = (d) => {
+  const [y, m] = String(d).slice(0, 7).split('-').map(Number);
+  return (y * 12) + m - 1;
+};
+
+/** Meses da janela em que o indicador está vigente (vigência nula = aberta). */
+function mesesVigentes(janela, ind) {
+  const ini = Math.max(mesIdx(janela.inicio), ind.vigencia_inicio ? mesIdx(ind.vigencia_inicio) : -Infinity);
+  const fim = Math.min(mesIdx(janela.fim), ind.vigencia_fim ? mesIdx(ind.vigencia_fim) : Infinity);
+  return Math.max(0, fim - ini + 1);
+}
+
+/** where Sequelize: vigência do indicador cruza a janela (nulos abertos). */
+const vigenteNaJanela = (janela) => {
+  const p = mesIdx(janela.fim) + 1; // 1º dia do mês seguinte ao fim
+  const aposFim = `${Math.floor(p / 12)}-${String((p % 12) + 1).padStart(2, '0')}-01`;
+  return {
+    [Op.and]: [
+      { [Op.or]: [{ vigencia_inicio: null }, { vigencia_inicio: { [Op.lt]: aposFim } }] },
+      { [Op.or]: [{ vigencia_fim: null }, { vigencia_fim: { [Op.gte]: janela.inicio } }] },
+    ],
+  };
+};
+
+/** Indicadores ativos no escopo (vigentes na janela, se dada), com unidade+contrato (e metas se pedido). */
+async function fetchIndicadoresNoEscopo(params, ossIdFiltro, { comMetas = false, janela = null } = {}) {
   const { unidadeWhere, contratoWhere } = buildEscopoWhere(params, ossIdFiltro);
   const include = [{
     model: db.unidade,
@@ -29,9 +57,12 @@ async function fetchIndicadoresNoEscopo(params, ossIdFiltro, { comMetas = false 
       where: Object.keys(contratoWhere).length ? contratoWhere : undefined,
     }],
   }];
-  if (comMetas) include.push({ model: db.meta, as: 'metas', required: false });
+  if (comMetas) {
+    include.push({ model: db.meta, as: 'metas', required: false });
+    include.push({ model: db.bloco_producao, as: 'bloco', required: false });
+  }
   // Informativos (obrigatorio=0) ficam fora do Dashboard e Relatório CMS
-  return db.indicador.findAll({ where: { ativo: 1, obrigatorio: 1 }, include });
+  return db.indicador.findAll({ where: { ativo: 1, obrigatorio: 1, ...(janela ? vigenteNaJanela(janela) : {}) }, include });
 }
 
 /** Meta folha vigente (maior versão, não agregada) do indicador. */
@@ -59,14 +90,22 @@ function metaDoPeriodo(indicador, meta, janela) {
   return mensal != null ? mensal * janela.meses : null;
 }
 
-function linhaIndicador(indicador, acomps, janela) {
+/** Lançamento dentro da vigência do indicador (descarta órfãos de conjunto já encerrado). */
+const naVigencia = (ind, a) => (!ind.vigencia_inicio || mesIdx(a.mes_referencia) >= mesIdx(ind.vigencia_inicio))
+  && (!ind.vigencia_fim || mesIdx(a.mes_referencia) <= mesIdx(ind.vigencia_fim));
+
+function linhaIndicador(indicador, todos, janela) {
+  const acomps = todos.filter((a) => naVigencia(indicador, a));
   const meta = metaVigente(indicador.metas);
   const realizadoAcum = parseFloat(acomps.reduce(
     (s, a) => s + (a.valor_realizado != null ? parseFloat(a.valor_realizado) : 0),
     0,
   ).toFixed(4));
-  const metaPeriodo = metaDoPeriodo(indicador, meta, janela);
-  const percentual = metaPeriodo && metaPeriodo > 0
+  // Meta só dos meses em que o indicador vigora (troca de conjunto no meio da janela, ex.: aditivo)
+  const meses = mesesVigentes(janela, indicador);
+  const metaPeriodo = metaDoPeriodo(indicador, meta, meses < janela.meses ? { ...janela, meses, anual: false } : janela);
+  const comValor = acomps.some((a) => a.valor_realizado != null);
+  const percentual = comValor && metaPeriodo && metaPeriodo > 0
     ? parseFloat(((realizadoAcum / metaPeriodo) * 100).toFixed(2))
     : null;
 
@@ -86,6 +125,113 @@ function linhaIndicador(indicador, acomps, janela) {
     percentual,
     status: calcularStatusCumprimento(percentual, meta),
     faixa: calcularFaixaProducao(percentual),
+    blocoId: indicador.bloco_id || null,
+    blocoNome: indicador.bloco?.nome || null,
+    pesoIndicador: indicador.peso_perc != null ? parseFloat(indicador.peso_perc) : null,
+    meta: meta ? {
+      meta_tipo: meta.meta_tipo, meta_minima: meta.meta_minima, meta_parcial: meta.meta_parcial,
+    } : null,
+  };
+}
+
+const r2 = (v) => (v == null ? null : Math.round(v * 100) / 100);
+
+/** producao_qualidade: % considerado = 100 − desconto da faixa de alcance. */
+function producaoConsiderado(pct, regra) {
+  const faixas = regra.producao?.faixas || [];
+  const desc = percentualPorEscala(pct, faixas.map((f) => ({ min: f.min, perc: f.desc })), regra.producao?.abaixo ?? 0);
+  return desc == null ? null : 100 - desc;
+}
+
+/**
+ * Pontuação de uma unidade pela regra de recebimento da vigência (mesmos fatores do Recebimento).
+ * Linha: consideradoPerc (0–100), limiar (% da meta que já vale 100%), peso e pontos (= peso × considerado).
+ * Quantitativo pontua por bloco (Σreal/Σmeta das linhas do bloco, ex.: SADT = RX + Lab); qualitativo por linha.
+ * Sem lançamento conta 0 no peso (como no Recebimento) e fica em `pendentes`. Muta as linhas (acrescenta campos).
+ */
+function pontuarUnidade(quantitativos, qualitativos, regraBruta, pesoBloco) {
+  const regra = regraEfetiva(regraBruta);
+  const producao = regra.modelo === 'producao_qualidade';
+  const limiarProd = producao
+    ? Math.max(0, ...(regra.producao?.faixas || []).filter((f) => !f.desc).map((f) => f.min))
+    : null;
+  const fatorQual = {
+    niveis: fatorNivel,
+    binaria: (pct, meta) => fatorNivel(pct, meta, true),
+  }[regra.pontuacao] || fatorProporcional;
+  const consideradoQuant = (pct, meta) => {
+    if (pct == null) return null;
+    return producao ? producaoConsiderado(pct, regra) : fatorProporcional(pct, meta) * 100;
+  };
+
+  for (const l of quantitativos) {
+    const f = faixasEfetivas(l.meta);
+    l.limiar = producao ? { tipo: 'maior_igual', valor: limiarProd } : { tipo: f.tipo, valor: f.cumprido };
+    l.consideradoPerc = r2(consideradoQuant(l.percentual, l.meta));
+  }
+
+  const blocosMap = new Map();
+  for (const l of quantitativos) {
+    const k = l.blocoId || l.indicadorId;
+    if (!blocosMap.has(k)) {
+      blocosMap.set(k, {
+        blocoId: l.blocoId, nome: l.blocoNome || l.nome, peso: l.blocoId ? pesoBloco(l.blocoId) : null, linhas: [],
+      });
+    }
+    blocosMap.get(k).linhas.push(l);
+  }
+  const blocos = [...blocosMap.values()].map((b) => {
+    const comDado = b.linhas.filter((l) => l.percentual != null && l.metaPeriodo > 0);
+    const real = comDado.reduce((s, l) => s + l.realizadoAcum, 0);
+    const base = comDado.reduce((s, l) => s + l.metaPeriodo, 0);
+    const alcance = comDado.length ? (real / base) * 100 : null;
+    const c = consideradoQuant(alcance, comDado[0]?.meta);
+    let pontos = null;
+    if (b.peso != null) pontos = c != null ? r2((b.peso * c) / 100) : 0;
+    return {
+      blocoId: b.blocoId,
+      nome: b.nome,
+      indicadores: b.linhas.map((l) => l.codigo),
+      alcance: r2(alcance),
+      consideradoPerc: r2(c),
+      peso: b.peso,
+      pontos,
+      pendente: c == null,
+    };
+  });
+  const comPeso = blocos.filter((b) => b.peso > 0);
+  const pesoQuant = comPeso.reduce((s, b) => s + b.peso, 0);
+  const pontosQuant = comPeso.reduce((s, b) => s + (b.pontos || 0), 0);
+  const quant = pesoQuant > 0 ? {
+    peso: r2(pesoQuant),
+    pontos: r2(pontosQuant),
+    percentual: r2((pontosQuant / pesoQuant) * 100),
+    pendentes: comPeso.filter((b) => b.pendente).length,
+  } : null;
+
+  for (const l of qualitativos) {
+    const f = faixasEfetivas(l.meta);
+    l.limiar = { tipo: f.tipo, valor: f.cumprido };
+    const c = l.percentual != null ? fatorQual(l.percentual, l.meta) * 100 : null;
+    l.consideradoPerc = r2(c);
+    l.peso = l.pesoIndicador > 0 ? l.pesoIndicador : null;
+    l.pontos = l.peso != null ? r2((l.peso * (c ?? 0)) / 100) : null;
+  }
+  const qPeso = qualitativos.filter((l) => l.peso > 0);
+  const pesoQual = qPeso.reduce((s, l) => s + l.peso, 0);
+  const pontosQual = qPeso.reduce((s, l) => s + (l.pontos || 0), 0);
+  const nota = pesoQual > 0 ? (pontosQual / pesoQual) * 100 : null;
+  const linear = regra.qualidade?.modo === 'linear';
+  const qual = pesoQual > 0 ? {
+    peso: r2(pesoQual),
+    pontos: r2(pontosQual),
+    nota: r2(nota),
+    percEscala: linear ? null : percentualPorEscala(nota, regra.escala, regra.abaixo),
+    pendentes: qPeso.filter((l) => l.consideradoPerc == null).length,
+  } : null;
+
+  return {
+    modelo: regra.modelo, pontuacao: regra.pontuacao, escala: linear ? null : regra.escala, blocos, quant, qual,
   };
 }
 
@@ -103,7 +249,7 @@ const gerar = async (params, ossIdFiltro = null) => {
   if (escopo === 'unidade') await assertUnidadeNoEscopoOSS(unidadeId, ossIdFiltro);
 
   const indicadores = await fetchIndicadoresNoEscopo(
-    { escopo, contratoId, unidadeId }, ossIdFiltro, { comMetas: true },
+    { escopo, contratoId, unidadeId }, ossIdFiltro, { comMetas: true, janela },
   );
 
   const indicadorIds = indicadores.map((i) => i.indicador_id);
@@ -120,6 +266,18 @@ const gerar = async (params, ossIdFiltro = null) => {
   for (const a of acomps) {
     (acompsPorIndicador[a.indicador_id] ||= []).push(a);
   }
+
+  // Regra de recebimento e pesos de bloco vigentes no fim da janela
+  const noFim = vigenteNaJanela({ inicio: janela.fim, fim: janela.fim });
+  const contratoIds = [...new Set(indicadores.map((i) => i.unidade.contrato.contrato_id))];
+  const hists = contratoIds.length
+    ? await db.historico_contrato.findAll({ where: { contrato_id: contratoIds, ...noFim }, order: [['versao', 'DESC']] })
+    : [];
+  const blocoIds = [...new Set(indicadores.map((i) => i.bloco_id).filter(Boolean))];
+  const histBlocos = blocoIds.length
+    ? await db.historico_bloco.findAll({ where: { bloco_id: blocoIds, ...noFim }, order: [['versao', 'DESC']] })
+    : [];
+  const blocoPorId = new Map(indicadores.filter((i) => i.bloco).map((i) => [i.bloco_id, i.bloco]));
 
   // Agrupa contrato → unidade → {quantitativos, qualitativos}
   const contratosMap = new Map();
@@ -160,10 +318,23 @@ const gerar = async (params, ossIdFiltro = null) => {
   }
 
   const contratos = [...contratosMap.values()]
-    .map((c) => ({
-      ...c,
-      unidades: [...c.unidades.values()].sort((a, b) => a.nome.localeCompare(b.nome)),
-    }))
+    .map((c) => {
+      const hist = hists.find((h) => h.contrato_id === c.contratoId);
+      const bruta = hist?.regra_recebimento ? JSON.parse(hist.regra_recebimento) : null;
+      const unidades = [...c.unidades.values()].map((u) => {
+        const regraU = bruta?.unidades?.[u.unidadeId] || bruta;
+        const pesoBloco = (blocoId) => {
+          const bloco = blocoPorId.get(blocoId);
+          const daRegra = bloco && regraU?.pesos_blocos?.[bloco.codigo];
+          if (daRegra != null) return parseFloat(daRegra);
+          const h = histBlocos.find((x) => x.bloco_id === blocoId);
+          const v = h ? h.percentual_peso_bloco : bloco?.percentual_peso_bloco;
+          return v != null ? parseFloat(v) : null;
+        };
+        return { ...u, pontuacao: pontuarUnidade(u.quantitativos, u.qualitativos, regraU, pesoBloco) };
+      });
+      return { ...c, unidades: unidades.sort((a, b) => a.nome.localeCompare(b.nome)) };
+    })
     .sort((a, b) => String(a.numero).localeCompare(String(b.numero)));
 
   return {
@@ -195,7 +366,7 @@ const serieMensal = async (params, ossIdFiltro = null) => {
   if (escopo === 'contrato') await assertContratoNoEscopoOSS(contratoId, ossIdFiltro);
   if (escopo === 'unidade') await assertUnidadeNoEscopoOSS(unidadeId, ossIdFiltro);
 
-  const indicadores = await fetchIndicadoresNoEscopo({ escopo, contratoId, unidadeId }, ossIdFiltro);
+  const indicadores = await fetchIndicadoresNoEscopo({ escopo, contratoId, unidadeId }, ossIdFiltro, { janela });
   const tipoPorId = new Map(indicadores.map((i) => [i.indicador_id, i.tipo]));
   const indicadorIds = [...tipoPorId.keys()];
 
@@ -261,7 +432,7 @@ const detalheMensal = async (params, ossIdFiltro = null) => {
   if (escopo === 'unidade') await assertUnidadeNoEscopoOSS(unidadeId, ossIdFiltro);
 
   const indicadores = await fetchIndicadoresNoEscopo(
-    { escopo, contratoId, unidadeId }, ossIdFiltro, { comMetas: true },
+    { escopo, contratoId, unidadeId }, ossIdFiltro, { comMetas: true, janela },
   );
   const indicadorIds = indicadores.map((i) => i.indicador_id);
 
@@ -314,5 +485,5 @@ const ultimoMesComDados = async () => {
 };
 
 module.exports = {
-  gerar, serieMensal, detalheMensal, ultimoMesComDados, metaDoPeriodo, buildEscopoWhere,
+  gerar, serieMensal, detalheMensal, ultimoMesComDados, metaDoPeriodo, buildEscopoWhere, mesesVigentes, pontuarUnidade,
 };

@@ -8,6 +8,10 @@ import { useApi, ApiError } from '../hooks/useApi'
 import { formatNumber, formatPercent, formatMesReferencia } from '../lib/formatters'
 import type { StatusCumprimento } from '../types'
 
+const STATUS_LABEL: Record<StatusCumprimento, string> = {
+  cumprido: 'Cumprido', parcial: 'Parcial', nao_cumprido: 'Não Cumprido', nao_aplicavel: 'N/A', aguardando: 'Aguardando',
+}
+
 // ── Tipos da resposta /relatorios/cms ───────────────────────────────────────────
 interface Linha {
   indicadorId: string
@@ -23,6 +27,27 @@ interface Linha {
   percentual: number | null
   status: StatusCumprimento
   faixa: string | null
+  /** % considerado pela regra de recebimento (0–100); null = sem lançamento */
+  consideradoPerc: number | null
+  /** % da meta que já vale 100% (≥ maior_igual / ≤ menor_igual) */
+  limiar: { tipo: 'maior_igual' | 'menor_igual'; valor: number } | null
+  peso?: number | null
+  pontos?: number | null
+}
+interface BlocoPontuacao {
+  blocoId: string | null
+  nome: string
+  alcance: number | null
+  consideradoPerc: number | null
+  peso: number | null
+  pontos: number | null
+  pendente: boolean
+}
+interface Pontuacao {
+  modelo: string
+  blocos: BlocoPontuacao[]
+  quant: { peso: number; pontos: number; percentual: number; pendentes: number } | null
+  qual: { peso: number; pontos: number; nota: number | null; percEscala: number | null; pendentes: number } | null
 }
 interface UnidadeRel {
   unidadeId: string
@@ -31,6 +56,7 @@ interface UnidadeRel {
   tipo: string
   quantitativos: Linha[]
   qualitativos: Linha[]
+  pontuacao: Pontuacao
 }
 interface ContratoRel {
   contratoId: string
@@ -94,12 +120,14 @@ export default function RelatoriosCMSPage() {
   )
 
   const handleExportExcel = () => {
-    const headers = ['Contrato', 'Unidade', 'Código', 'Indicador', 'Tipo', 'Meta período', 'Realizado', '%', 'Status']
+    const headers = ['Contrato', 'Unidade', 'Código', 'Indicador', 'Tipo', 'Meta período', 'Realizado', '%', 'Status', '% considerado', 'Peso', 'Pontos']
     const rows = todasLinhas.map(l => [
       l.contrato, l.unidade, l.codigo, l.nome, l.tipo,
-      l.metaPeriodo ?? '', l.realizadoAcum,
+      l.metaPeriodo ?? '', l.percentual != null ? l.realizadoAcum : '',
       l.percentual != null ? `${l.percentual.toFixed(1)}%` : '',
-      l.status,
+      STATUS_LABEL[l.status],
+      l.consideradoPerc != null ? `${l.consideradoPerc.toFixed(1)}%` : '',
+      l.peso ?? '', l.pontos ?? '',
     ].join('\t'))
     const tsv = [headers.join('\t'), ...rows].join('\n')
     const url = URL.createObjectURL(new Blob([tsv], { type: 'text/tab-separated-values' }))
@@ -175,7 +203,7 @@ export default function RelatoriosCMSPage() {
                     u[secao].length > 0 && (
                       <Tabela key={secao}
                         titulo={secao === 'quantitativos' ? 'Produção (quantitativo)' : 'Qualidade (qualitativo)'}
-                        linhas={u[secao]} />
+                        linhas={u[secao]} pontuacao={u.pontuacao} qualitativo={secao === 'qualitativos'} />
                     )
                   ))}
                 </div>
@@ -215,19 +243,33 @@ function Resumo({ n, total, label, tom }: { n: number; total: number; label: str
   )
 }
 
-function Tabela({ titulo, linhas }: { titulo: string; linhas: Linha[] }) {
+const fmtLimiar = (l: Linha['limiar']) => (l ? `${l.tipo === 'menor_igual' ? '≤' : '≥'}${formatNumber(l.valor)}%` : '')
+
+const TH = 'px-2 py-2 font-medium text-slate-600 dark:text-slate-400'
+const THR = `${TH} text-right`
+const TD_NUM = 'px-2 py-1.5 text-right font-mono'
+
+function Tabela({ titulo, linhas, pontuacao, qualitativo }: {
+  titulo: string; linhas: Linha[]; pontuacao: Pontuacao; qualitativo: boolean
+}) {
+  const blocos = qualitativo ? [] : pontuacao.blocos.filter(b => b.peso != null)
+  const qual = qualitativo ? pontuacao.qual : null
+  const quant = qualitativo ? null : pontuacao.quant
   return (
     <div className="mb-3 overflow-x-auto">
       <p className="mb-1 text-xs font-medium text-slate-500">{titulo}</p>
-      <table className="w-full text-left text-xs">
+      <table className="w-full min-w-[860px] text-left text-xs">
         <thead>
           <tr className="border-b border-border-light dark:border-border-dark">
-            <th className="px-2 py-2 font-medium text-slate-600 dark:text-slate-400">Código</th>
-            <th className="px-2 py-2 font-medium text-slate-600 dark:text-slate-400">Indicador</th>
-            <th className="px-2 py-2 text-right font-medium text-slate-600 dark:text-slate-400">Meta período</th>
-            <th className="px-2 py-2 text-right font-medium text-slate-600 dark:text-slate-400">Realizado</th>
-            <th className="px-2 py-2 text-right font-medium text-slate-600 dark:text-slate-400">%</th>
-            <th className="px-2 py-2 font-medium text-slate-600 dark:text-slate-400">Status</th>
+            <th className={TH}>Código</th>
+            <th className={TH}>Indicador</th>
+            <th className={THR}>Meta período</th>
+            <th className={THR}>Realizado</th>
+            <th className={THR}>%</th>
+            <th className={TH}>Status</th>
+            <th className={THR} title="Percentual que a regra de recebimento considera (100% a partir do limiar)">% considerado</th>
+            <th className={THR}>Peso</th>
+            <th className={THR}>Pontos</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-border-light dark:divide-border-dark">
@@ -238,13 +280,56 @@ function Tabela({ titulo, linhas }: { titulo: string; linhas: Linha[] }) {
                 {l.nome}
                 {l.mesesComLancamento === 0 && <span className="ml-1 text-[10px] text-na">(sem lançamento)</span>}
               </td>
-              <td className="px-2 py-1.5 text-right font-mono text-slate-600 dark:text-slate-400">{l.metaPeriodo != null ? formatNumber(l.metaPeriodo) : '—'}</td>
-              <td className="px-2 py-1.5 text-right font-mono text-slate-900 dark:text-slate-200">{formatNumber(l.realizadoAcum)}</td>
-              <td className="px-2 py-1.5 text-right font-mono font-bold">{l.percentual != null ? formatPercent(l.percentual) : '—'}</td>
+              <td className={`${TD_NUM} text-slate-600 dark:text-slate-400`}>{l.metaPeriodo != null ? formatNumber(l.metaPeriodo) : '—'}</td>
+              <td className={`${TD_NUM} text-slate-900 dark:text-slate-200`}>{l.percentual != null ? formatNumber(l.realizadoAcum) : '—'}</td>
+              <td className={`${TD_NUM} font-bold`}>{l.percentual != null ? formatPercent(l.percentual) : '—'}</td>
               <td className="px-2 py-1.5"><StatusBadge status={l.status} /></td>
+              <td className={`${TD_NUM} text-slate-900 dark:text-slate-200`}>
+                {l.consideradoPerc != null ? formatPercent(l.consideradoPerc) : '—'}
+                {l.limiar && <span className="ml-1 text-[10px] text-slate-500">({fmtLimiar(l.limiar)})</span>}
+              </td>
+              <td className={`${TD_NUM} text-slate-600 dark:text-slate-400`}>{l.peso != null ? formatNumber(l.peso) : ''}</td>
+              <td className={`${TD_NUM} text-slate-900 dark:text-slate-200`}>{l.pontos != null ? formatNumber(l.pontos) : ''}</td>
             </tr>
           ))}
         </tbody>
+        {(blocos.length > 0 || qual) && (
+          <tfoot className="border-t-2 border-border-light dark:border-border-dark">
+            {blocos.map(b => (
+              <tr key={b.blocoId ?? b.nome} className="bg-slate-50 dark:bg-slate-800/40">
+                <td className="px-2 py-1.5 text-[10px] uppercase text-slate-500">Bloco</td>
+                <td className="px-2 py-1.5 text-slate-900 dark:text-slate-200" colSpan={3}>
+                  {b.nome}{b.pendente && <span className="ml-1 text-[10px] text-na">(sem lançamento, conta 0)</span>}
+                </td>
+                <td className={`${TD_NUM} font-bold`}>{b.alcance != null ? formatPercent(b.alcance) : '—'}</td>
+                <td />
+                <td className={TD_NUM}>{b.consideradoPerc != null ? formatPercent(b.consideradoPerc) : '—'}</td>
+                <td className={TD_NUM}>{b.peso != null ? formatNumber(b.peso) : ''}</td>
+                <td className={`${TD_NUM} font-bold`}>{b.pontos != null ? formatNumber(b.pontos) : ''}</td>
+              </tr>
+            ))}
+            {quant && (
+              <tr className="font-semibold">
+                <td className="px-2 py-1.5" colSpan={6}>Total quantitativo{quant.pendentes > 0 ? ` (${quant.pendentes} bloco(s) sem lançamento)` : ''}</td>
+                <td className={TD_NUM}>{formatPercent(quant.percentual)}</td>
+                <td className={TD_NUM}>{formatNumber(quant.peso)}</td>
+                <td className={TD_NUM}>{formatNumber(quant.pontos)}</td>
+              </tr>
+            )}
+            {qual && (
+              <tr className="font-semibold">
+                <td className="px-2 py-1.5" colSpan={6}>
+                  Total qualitativo — nota {qual.nota != null ? formatPercent(qual.nota) : '—'}
+                  {qual.percEscala != null && ` → recebe ${formatPercent(qual.percEscala)} da parte variável`}
+                  {qual.pendentes > 0 && <span className="ml-1 font-normal text-na">({qual.pendentes} sem lançamento, contam 0)</span>}
+                </td>
+                <td className={TD_NUM}>{qual.nota != null ? formatPercent(qual.nota) : '—'}</td>
+                <td className={TD_NUM}>{formatNumber(qual.peso)}</td>
+                <td className={TD_NUM}>{formatNumber(qual.pontos)}</td>
+              </tr>
+            )}
+          </tfoot>
+        )}
       </table>
     </div>
   )
