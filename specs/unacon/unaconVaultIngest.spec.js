@@ -6,6 +6,8 @@ const {
   parseTabelaConsultas,
   normalizarNome,
   parseDataBr,
+  ingerirVaultUnacon,
+  VAULT_BASE_DIR,
 } = require('../../src/incorporacao/unaconVaultIngest');
 
 describe('Parser de Tabelas Nominais do Vault UNACON', () => {
@@ -84,6 +86,32 @@ CIRURGIAS REALIZADAS - JANEIRO 2026<br>QUANT SOLICITAÇÃODATA DA  DATA DA CIRUR
     expect(cirurgias[0].complexidade).to.equal('alta');
     expect(cirurgias[0].dataSolicitacao).to.equal('2025-11-17');
     expect(cirurgias[0].dataExecucao).to.equal('2026-01-05');
+  });
+
+  it('deve extrair consultas de bloco OCR de texto identificando status atendido e ausente', () => {
+    const rawMarkdown = `
+<!-- Start of picture text -->
+CONSULTAS REALIZADAS - JANEIRO  2026<br>QUANT Data Agenda Especialidade Médico Paciente Nasc. Atendido Aus Tipo Agendamento Município<br>46 06/01/2026 ONCOLOGIA CIRURGICA - MASTOLOGIA  PAULO SERGIO REIS  FABIANA DE OLIVEIRA SOUZA 18/06/1984 X CROSS PEDREIRA<br>47 06/01/2026 ONCOLOGIA CIRURGICA - MASTOLOGIA  PAULO SERGIO REIS  MARCOS SILVA PEREIRA 12/03/1975   X CROSS AMERICANA<br><!-- End of picture text -->
+    `;
+    const consultas = parseTabelaConsultas(rawMarkdown);
+    expect(consultas).to.have.lengthOf(2);
+
+    expect(consultas[0].nome).to.equal('FABIANA DE OLIVEIRA SOUZA');
+    expect(consultas[0].comparecimento).to.equal('atendido');
+    expect(consultas[0].dataExecucao).to.equal('2026-01-06');
+    expect(consultas[0].dataNascimento).to.equal('1984-06-18');
+    expect(consultas[0].municipio).to.equal('PEDREIRA');
+
+    expect(consultas[1].nome).to.equal('MARCOS SILVA PEREIRA');
+    expect(consultas[1].comparecimento).to.equal('ausente');
+    expect(consultas[1].dataExecucao).to.equal('2026-01-06');
+    expect(consultas[1].dataNascimento).to.equal('1975-03-12');
+    expect(consultas[1].municipio).to.equal('AMERICANA');
+  });
+
+  it('deve exportar ingerirVaultUnacon e VAULT_BASE_DIR', () => {
+    expect(ingerirVaultUnacon).to.be.a('function');
+    expect(VAULT_BASE_DIR).to.be.a('string');
   });
 
   it('deve retornar array vazio para markdown invalido ou vazio', () => {

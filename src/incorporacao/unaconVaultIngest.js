@@ -47,13 +47,14 @@ const NUM_MESES_MAP = {
 };
 
 function getVaultDir() {
-  const rootDir = path.resolve(__dirname, '..', '..');
-  const localVault = path.join(rootDir, 'prestacao-vault');
-  if (fs.existsSync(localVault)) return localVault;
-  const globalVault = 'E:\\xampp\\htdocs\\oss\\prestacao-vault';
-  if (fs.existsSync(globalVault)) return globalVault;
-  return localVault;
+  const primary = process.env.VAULT_PATH || path.resolve(__dirname, '../../prestacao-vault');
+  if (fs.existsSync(primary)) return primary;
+  const fallback = process.env.GLOBAL_VAULT_PATH || 'E:\\xampp\\htdocs\\oss\\prestacao-vault';
+  if (fs.existsSync(fallback)) return fallback;
+  return primary;
 }
+
+const VAULT_BASE_DIR = getVaultDir();
 
 /**
  * Normaliza o nome do paciente removendo títulos (Dr, Dra, Sr, Sra), acentos,
@@ -404,7 +405,7 @@ function parseTabelaConsultas(conteudoMarkdown) {
     const items = pm[0].split(/<br\s*\/?>/i);
     for (const item of items) {
       const m = item.match(
-        /^\s*(\d+)\s+(\d{2}[\/\-]\d{2}[\/\-]\d{4})\s+(ONCOLOGIA[A-Z\s\-]+?)\s{2,}([A-Z\s]+?)\s{2,}([A-Z\s]+?)\s+(\d{2}[\/\-]\d{2}[\/\-]\d{4})\s+(?:(X|x)\s+)?(?:(X|x)\s+)?(CROSS|RETORNO|INTERCONSULTA)\s+(.*)$/i
+        /^\s*(\d+)\s+(\d{2}[\/\-]\d{2}[\/\-]\d{4})\s+(ONCOLOGIA[A-Z\s\-]+?)\s{2,}([A-Z\s]+?)\s{2,}([A-Z\s]+?)\s+(\d{2}[\/\-]\d{2}[\/\-]\d{4})(.*?)(CROSS|RETORNO|INTERCONSULTA)\s+(.*)$/i
       );
       if (m) {
         const dataExecucao = parseDataBr(m[2]);
@@ -412,11 +413,40 @@ function parseTabelaConsultas(conteudoMarkdown) {
         const medico = m[4].trim();
         const nomeLimpo = m[5].trim();
         const dataNascimento = parseDataBr(m[6]);
-        const ausente = m[8];
+        const segment = m[7] || '';
         let comparecimento = 'atendido';
-        if (/x/i.test(ausente)) comparecimento = 'ausente';
-        const tipoAgendamento = m[9].trim();
-        const municipio = m[10].trim();
+
+        if (segment.includes('|')) {
+          const parts = segment.split('|');
+          let ausPart = '';
+          let atendidoPart = '';
+          if (parts.length >= 3) {
+            atendidoPart = parts[1];
+            ausPart = parts[2];
+          } else if (parts.length === 2) {
+            atendidoPart = parts[0];
+            ausPart = parts[1];
+          }
+          if (/[Xx]/.test(ausPart)) {
+            comparecimento = 'ausente';
+          } else if (/[Xx]/.test(atendidoPart)) {
+            comparecimento = 'atendido';
+          }
+        } else {
+          const xMatch = segment.match(/[Xx]/);
+          if (xMatch) {
+            const leading = xMatch.index;
+            const trailing = segment.length - (leading + 1);
+            if (leading > trailing || leading >= 2) {
+              comparecimento = 'ausente';
+            } else {
+              comparecimento = 'atendido';
+            }
+          }
+        }
+
+        const tipoAgendamento = m[8].trim();
+        const municipio = m[9].trim();
 
         const exists = resultados.some(
           (r) => r.nome === nomeLimpo && r.dataExecucao === dataExecucao && r.especialidade === especialidade
@@ -444,7 +474,7 @@ function parseTabelaConsultas(conteudoMarkdown) {
 /**
  * Ingestão de dados do Vault para um mês específico da UNACON.
  */
-async function ingerirMesUnacon(ano, mes) {
+async function ingerirMesUnacon(ano, mes, targetDb = db) {
   const mesStr = String(mes).toLowerCase().trim();
   const mesNum = MESES_MAP[mesStr];
   if (!mesNum) {
@@ -505,14 +535,14 @@ async function ingerirMesUnacon(ano, mes) {
 
   const todosRegistros = [...cirurgiasTotal, ...consultasTotal];
 
-  const Paciente = db.unacon_paciente || db.UnaconPaciente;
-  const Procedimento = db.unacon_procedimento || db.UnaconProcedimento;
+  const Paciente = targetDb.unacon_paciente || targetDb.UnaconPaciente;
+  const Procedimento = targetDb.unacon_procedimento || targetDb.UnaconProcedimento;
 
   let totalPacientesCriados = 0;
   let totalCirurgias = 0;
   let totalConsultas = 0;
 
-  const t = await db.sequelize.transaction();
+  const t = await targetDb.sequelize.transaction();
   try {
     const cachePacientes = new Map();
 
@@ -635,7 +665,7 @@ async function ingerirMesUnacon(ano, mes) {
 /**
  * Ingestão de dados de todos os meses de um ano.
  */
-async function ingerirAnoUnacon(ano) {
+async function ingerirAnoUnacon(ano, targetDb = db) {
   const meses = [
     'janeiro',
     'fevereiro',
@@ -652,9 +682,22 @@ async function ingerirAnoUnacon(ano) {
   ];
   const resultados = {};
   for (const m of meses) {
-    resultados[m] = await ingerirMesUnacon(ano, m);
+    resultados[m] = await ingerirMesUnacon(ano, m, targetDb);
   }
   return resultados;
+}
+
+/**
+ * Interface unificada de ingestão do Vault UNACON.
+ * Se mes for fornecido, executa ingerirMesUnacon(ano, mes).
+ * Caso contrário, executa ingerirAnoUnacon(ano).
+ */
+async function ingerirVaultUnacon({ ano = 2026, mes, db: customDb } = {}) {
+  const activeDb = customDb || db;
+  if (mes !== undefined && mes !== null && mes !== '') {
+    return ingerirMesUnacon(ano, mes, activeDb);
+  }
+  return ingerirAnoUnacon(ano, activeDb);
 }
 
 if (require.main === module) {
@@ -673,13 +716,8 @@ if (require.main === module) {
       }
 
       console.log(`[Vault Ingest] Iniciando ingestão UNACON: ano=${ano}, mes=${mes || 'todos'}`);
-      if (mes) {
-        const res = await ingerirMesUnacon(ano, mes);
-        console.log(`[Vault Ingest] Mês ${mes} concluído:`, res);
-      } else {
-        const res = await ingerirAnoUnacon(ano);
-        console.log(`[Vault Ingest] Ano ${ano} concluído:`, res);
-      }
+      const res = await ingerirVaultUnacon({ ano, mes });
+      console.log(`[Vault Ingest] Concluído:`, res);
       process.exit(0);
     } catch (err) {
       console.error('[Vault Ingest] Erro na ingestão:', err);
@@ -689,10 +727,13 @@ if (require.main === module) {
 }
 
 module.exports = {
+  VAULT_BASE_DIR,
+  getVaultDir,
   normalizarNome,
   parseDataBr,
   parseTabelaCirurgias,
   parseTabelaConsultas,
   ingerirMesUnacon,
   ingerirAnoUnacon,
+  ingerirVaultUnacon,
 };
