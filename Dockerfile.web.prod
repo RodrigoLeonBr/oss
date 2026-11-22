@@ -1,8 +1,8 @@
 # Web de produção para servidor fraco: nginx servindo o dist já buildado.
-# O build do frontend acontece dentro da imagem `oss-api:latest` (stage frontend-build
+# O build do frontend acontece dentro da imagem `oss-deploy-api:latest` (stage frontend-build
 # do Dockerfile); aqui só copiamos o dist pronto — zero compilação no servidor.
-# IMPORTANTE: build `oss-api:latest` ANTES desta imagem (docker-save.ps1 faz na ordem).
-FROM oss-api:latest AS api
+# IMPORTANTE: build `oss-deploy-api:latest` ANTES desta imagem (docker-save.ps1 faz na ordem).
+FROM oss-deploy-api:latest AS api
 
 FROM nginx:1.27-alpine
 COPY --from=api /usr/src/app/frontend/dist /usr/share/nginx/html

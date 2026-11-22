@@ -31,4 +31,7 @@ docker compose -f "$COMPOSE" exec -T api npm run db:migrate
 echo "==> seed grupos financeiros canônicos"
 docker compose -f "$COMPOSE" exec -T api npx sequelize-cli db:seed --seed 20261117100000-seed-grupos-financeiros.js
 
+# servidor fraco = disco curto: remove imagens antigas que ficaram sem tag
+docker image prune -f >/dev/null
+
 echo "OK -> app em http://<SERVIDOR>:${WEB_PORT:-4000}"

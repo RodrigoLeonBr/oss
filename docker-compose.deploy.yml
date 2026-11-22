@@ -4,8 +4,9 @@
 # MySQL no host do servidor: configure DOCKER_DB_HOST e credenciais no .env.
 #
 # 1. No dev:    pwsh scripts/docker-save.ps1   -> gera oss-deploy.tar (api+web+redis)
-# 2. Copie:     oss-deploy.tar + este arquivo + .env  para o servidor
-# 3. No server: sh scripts/deploy-load.sh      -> docker load + up + migrate
+# 2. Copie:     oss-deploy.tar + este arquivo + scripts/deploy-load.sh + .env  para o servidor
+#    (tags oss-deploy-* para não colidir com as imagens oss-api/oss-web do compose dev)
+# 3. No server: sh deploy-load.sh              -> docker load + up + migrate
 
 services:
   redis:
@@ -21,7 +22,7 @@ services:
       retries: 3
 
   api:
-    image: oss-api:latest
+    image: oss-deploy-api:latest
     container_name: oss_api
     restart: unless-stopped
     depends_on:
@@ -63,7 +64,7 @@ services:
       start_period: 20s
 
   web:
-    image: oss-web:latest
+    image: oss-deploy-web:latest
     container_name: oss_web
     restart: unless-stopped
     depends_on:
