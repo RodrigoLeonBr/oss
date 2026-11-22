@@ -54,6 +54,10 @@ class UnaconUpload extends Model {
       }
     );
   }
+
+  static associate(models) {
+    if (models.usuario) this.belongsTo(models.usuario, { foreignKey: 'usuario_id', as: 'usuario' });
+  }
 }
 
 module.exports = UnaconUpload;

@@ -55,6 +55,7 @@ module.exports = {
 
     await queryInterface.addIndex('tb_unacon_pacientes', ['nome_normalizado', 'data_nascimento'], { name: 'idx_unacon_pac_norm' });
     await queryInterface.addIndex('tb_unacon_pacientes', ['cpf'], { name: 'idx_unacon_pac_cpf' });
+    await queryInterface.addIndex('tb_unacon_pacientes', ['cns'], { name: 'idx_unacon_pac_cns' });
     await queryInterface.addIndex('tb_unacon_pacientes', ['prontuario'], { name: 'idx_unacon_pac_pront' });
 
     // 2. tb_unacon_procedimentos
