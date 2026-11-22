@@ -2,55 +2,31 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-Memória principal — enxuta. Detalhe mora nas regras modulares e em `docs/`.
+Memória principal, enxuta. O conteúdo comum a todos os agentes (o que é, comandos, stack, banco, cron, dados sensíveis, incorporação) mora em `AGENTS.md`, importado abaixo. Aqui fica só o que é próprio do Claude Code.
 
-## What this is
+@AGENTS.md
 
-Plataforma de acompanhamento de contratos de gestão entre a SMS de Americana/SP e Organizações Sociais de Saúde (OSS). Ciclo mensal: coleta de indicadores → avaliação de cumprimento de metas → descontos por descumprimento → repasse financeiro → relatórios (CMS/TCESP). Domínio e código em **português**.
+## Palácio de memória do Claude Code
 
-## Commands
+Regras modulares em `.claude/rules/` (um tópico por arquivo). As sem `paths:` carregam toda sessão (importadas abaixo); as escopadas carregam ao tocar nos caminhos delas.
 
-Backend `:4001`, frontend Vite `:4000` (proxy `/api` → `:4001`).
+- `@.claude/rules/code-style.md`: convenções de código, resposta HTTP, gotchas de React.
+- `@.claude/rules/testing.md`: mocha/chai/sinon, rodar um teste, checks.
+- `@.claude/rules/security.md`: RBAC `checkPermission`, escopo por OSS, LGPD. **Ler antes de mexer em rotas.**
+- `.claude/rules/api.md`: camadas Route, Controller, Service, DAO; mapa de rotas; regra de cumprimento (escopada ao backend).
+- `.claude/rules/vault.md`: vault da prestação, unidades, tipos, escalas e proibições (escopada a `prestacao-vault/`, `2025/`, `2026/`, `src/db/carrega*.js`, `src/incorporacao/`).
+- `.claude/rules/extracao.md`: extração assistida por LLM (escopada a `src/extracao/` e `prestacao-vault/extracoes/`).
 
-```bash
-npm run dev                 # concurrently: backend (nodemon) + frontend; web espera a API subir
-npm start                   # Express só (prod-like, porta 4001)
-npm run build               # build do frontend (tsc && vite build)
-npm test                    # mocha (NÃO Jest; chai + sinon) — ver rules/testing.md
-npm run db:migrate          # aplica migrações Sequelize pendentes
-npm run db:seed             # popula dados reais de Americana/SP
-cd frontend && npx tsc --noEmit   # type-check obrigatório (zero erros)
-```
+Procedimentos sob demanda em `.claude/skills/` (ex.: `release`, `incorporacao`). Slash commands em `.claude/commands/` (`/review`, `/incorporar`). Notas pessoais em `CLAUDE.local.md` (fora do git).
 
-Um teste: `npx mocha specs/metas/<arquivo>.spec.js --exit`. Docker: `docker:up`/`docker:prod:up` etc. em `package.json`.
+## Incorporação: hook e etapa de memória
 
-> Em DEV o frontend faz auto-login real contra `tb_usuarios` com `frontend/.env.development` (não commitar). `npm run dev:frontend` usa `wait-on` contra `:4001` — se a API não subir, o web fica esperando.
+- `.claude/settings.json` registra um hook `PostToolUse` (`.claude/hooks/pos-incorporacao.js`). Quando um comando Bash converte, carrega ou importa dados da prestação (padrões em `src/incorporacao/gatilhos.js`), o hook roda `npm run pos-incorporacao` e devolve um aviso com o registro e as pendências de memória.
+- Recebido o aviso, cumpra a etapa de memória da skill `incorporacao` antes de dar a tarefa por encerrada e feche a pendência com `npm run pos-incorporacao -- --concluir=<id>`.
+- Comando que o hook não reconhece mas altera dado da prestação: rode a rotina à mão, como descrito em `AGENTS.md`.
 
-## Stack
+## MCP e ponte do chat
 
-Node 22 + Express 4 · Sequelize 6 + MySQL 8 · Redis · Socket.io · node-cron · Joi · Passport+JWT · Winston. Frontend: React 19 + TypeScript + Vite 8 (Rolldown) + Tailwind v4 + react-router v7 + react-window v2 + chart.js.
+MCP `oss-relatorios` (somente leitura, `src/claude/`, usuários `claude_ro` e `claude_sql`, roda no host): `docs/api-claude-chat.md`. Ferramenta ou tabela nova exige GRANT em `scripts/claude_ro.sql` e entrada na documentação.
 
-## Database
-
-MySQL 8, Sequelize 6. Config via `.sequelizerc` (config `src/config/database.js`, migrações `src/db/migrations/`, seeders `src/db/seeders/`). Convenções: PKs UUID (`DEFAULT (UUID())`), soft-delete (`paranoid: true` / campo `ativo`), tabelas de histórico append-only. Migração nunca editada após merge — crie nova.
-
-## Cron
-
-`src/cronJobs.js` (node-cron): 6º dia útil 08:00 calcula descontos de contratos ativos; diário 07:00 alerta documentos regulatórios vencendo; dias 1–5 úteis 09:00 alerta pendências via Socket.io.
-
-## Palácio de memória — onde está o quê
-
-Regras modulares em `.claude/rules/` (1 tópico por arquivo). As sem `paths:` carregam toda sessão (importadas abaixo); `api.md` é escopada e carrega ao tocar no backend.
-
-- `@.claude/rules/code-style.md` — convenções de código, resposta HTTP, gotchas de React.
-- `@.claude/rules/testing.md` — mocha/chai/sinon, rodar um teste, checks.
-- `@.claude/rules/security.md` — RBAC `checkPermission`, escopo por OSS, LGPD. **Ler antes de mexer em rotas.**
-- `.claude/rules/api.md` — camadas Route→Controller→Service→DAO, mapa de rotas, regra de cumprimento (escopada a `src/route|controllers|service|dao|validator`).
-
-Procedimentos sob demanda em `.claude/skills/` (ex.: `release`). Slash commands em `.claude/commands/` (ex.: `/review`). Notas pessoais em `CLAUDE.local.md` (fora do git).
-
-MCP/ponte do chat Claude (somente leitura, `src/claude/`, usuários `claude_ro`/`claude_sql`, roda no host): `docs/api-claude-chat.md`.
-
-Detalhe longo (lido sob demanda, sem `@`): `docs/PRD_v2.md`, `docs/ARQUITETURA_v2.md`, `docs/banco_v2.md`, `docs/erd_v2.md`, `docs/avaliacao-cumprimento-e-relatorios.md`, `docs/Manual-Operacao-Dominio-Contratual.md`, `docs/ponte-producao.md` (comparação informado × produção SIA/SIH).
-
-> O cabeçalho "Auto-generated from .context/docs" vem do pipeline `@dotcontext/cli`; este arquivo foi reescrito à mão. Se regenerar, preserve estas seções.
+> O cabeçalho "Auto-generated from .context/docs" vinha do pipeline `@dotcontext/cli`; este arquivo e o `AGENTS.md` são mantidos à mão. Se regenerar, preserve estas seções e o import de `AGENTS.md`.

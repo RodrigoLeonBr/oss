@@ -9,5 +9,19 @@
       "Bash(node src/helper/avaliacaoCumprimento.js)"
     ],
     "deny": []
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/pos-incorporacao.js\"",
+            "timeout": 180
+          }
+        ]
+      }
+    ]
   }
 }

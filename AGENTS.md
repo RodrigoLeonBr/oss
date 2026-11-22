@@ -1,79 +1,71 @@
-# Project Rules and Guidelines
+# AGENTS.md
 
-> Auto-generated from .context/docs on 2026-04-22T02:29:04.131Z
+Fonte única de instruções para qualquer agente de IA neste repositório (Claude Code, Codex, Gemini, Cursor, Cline, Windsurf, Continue, Trae, Zed, Aider). `GEMINI.md`, `CONVENTIONS.md`, `.cursorrules` e as pastas `.*/rules/` apenas apontam para cá. O Claude Code lê este arquivo pelo `@AGENTS.md` do `CLAUDE.md`.
 
-## README
+> Até 21/11/2026 este arquivo era gerado pelo `@dotcontext/cli` a partir de `.context/docs` e estava desatualizado. Foi reescrito à mão em 22/11/2026. Se o pipeline do dotcontext for executado de novo, restaure este conteúdo e os ponteiros (`git checkout -- AGENTS.md GEMINI.md CONVENTIONS.md .cursorrules '.*/rules/*'`).
 
-# Documentation Index
+## O que é
 
-Welcome to the repository knowledge base. Start with the project overview, then dive into specific guides as needed.
+Plataforma de acompanhamento de contratos de gestão entre a SMS de Americana/SP e Organizações Sociais de Saúde (OSS). Ciclo mensal: coleta de indicadores, avaliação de cumprimento de metas, descontos por descumprimento, repasse financeiro e relatórios (CMS/TCESP). Domínio e código em **português**.
 
-## Core Guides
-- [Project Overview](./project-overview.md)
-- [Development Workflow](./development-workflow.md)
-- [Testing Strategy](./testing-strategy.md)
-- [Tooling & Productivity Guide](./tooling.md)
+## Comandos
 
-## Repository Snapshot
-- `design/` — Design System HTML/JSX (tokens CSS, componentes, tabelas, gráficos)
-- `docs/` — Documentação do produto (PRD_v2, ARQUITETURA_v2, banco_v2, erd_v2)
-- `frontend/` — React 18 + TypeScript + Vite 8 (Rolldown)
-  - `src/pages/Oss/` — CRUD Organizações Sociais (List + FormModal + DeleteModal)
-  - `src/pages/Contratos/` — CRUD Contratos de Gestão (List + FormModal + DeleteModal)
-- `package.json` — Scripts npm (start, build, db:migrate, db:seed)
-- `README.md` — Guia rápido de setup
-- `specs/` — Especificações OpenAPI da autenticação
-- `src/` — Backend Node.js/Express (controllers, services, models, migrations)
+Backend `:4001`, frontend Vite `:4000` (proxy `/api` para `:4001`).
 
-## Document Map
-| Guide | File | Primary Inputs |
-| --- | --- | --- |
-| Project Overview | `project-overview.md` | Roadmap, README, stakeholder notes |
-| Development Workflow | `development-workflow.md` | Branching rules, CRUD pattern, DEV mock strategy |
-| Testing Strategy | `testing-strategy.md` | Test configs, CI gates, validação client-side CRUD |
-| Tooling & Productivity Guide | `tooling.md` | CLI scripts, Vite 8/Rolldown, react-window v2, TypeScript quirks |
+```bash
+npm run dev                 # concurrently: backend (nodemon) + frontend; web espera a API subir
+npm start                   # Express só (prod-like, porta 4001)
+npm run build               # build do frontend (tsc && vite build)
+npm test                    # mocha (NÃO Jest; chai + sinon)
+npm run db:migrate          # aplica migrações Sequelize pendentes
+npm run db:seed             # popula dados reais de Americana/SP
+npm run pos-incorporacao    # rotina após qualquer incorporação de dados da prestação (ver abaixo)
+cd frontend && npx tsc --noEmit   # type-check obrigatório (zero erros)
+```
 
-## Key Patterns (resumo rápido)
+Um teste: `npx mocha specs/metas/<arquivo>.spec.js --exit`. Docker: `docker:up`, `docker:prod:up` etc. em `package.json`.
 
-| Situação | Padrão |
-| --- | --- |
-| Nova página CRUD | `types.ts` → `List.tsx` → `FormModal.tsx` → `DeleteModal.tsx` → `App.tsx` lazy + rota |
-| Input sem `erasableSyntaxOnly` | Declarar propriedade antes do `constructor`, não como parameter property |
-| react-window | API v2: `List` + `rowComponent` + `rowCount` + `rowHeight` + `rowProps` |
-| 401 em DEV | `useApi` não faz logout; componente faz fallback para mock no `catch` |
-| `Field` dentro de modal | Definir fora do componente pai para evitar perda de foco a cada render |
-| Tabela responsiva | `overflow-x-auto` + `minWidth` envolvendo **header + body** juntos |
+Em DEV o frontend faz auto-login real contra `tb_usuarios` com `frontend/.env.development` (não commitar). `npm run dev:frontend` usa `wait-on` contra `:4001`: se a API não subir, o web fica esperando.
 
+## Stack
 
-## qa/README
+Node 22 + Express 4, Sequelize 6 + MySQL 8 (MariaDB no Docker), Redis, Socket.io, node-cron, Joi, Passport + JWT, Winston. Frontend: React 19 + TypeScript + Vite 8 (Rolldown) + Tailwind v4 + react-router v7 + react-window v2 + chart.js.
 
-# Q&A Index
+## Banco
 
-Project type: **library**
+Config via `.sequelizerc` (config `src/config/database.js`, migrações `src/db/migrations/`, seeders `src/db/seeders/`). Convenções: PKs UUID (`DEFAULT (UUID())`), soft-delete (`paranoid: true` ou campo `ativo`), tabelas de histórico append-only. Migração nunca é editada após merge: crie outra. Tabela nova que o chat precisa ler entra em `scripts/claude_ro.sql`.
 
-Generated: 2026-04-13T02:41:48.530Z
+## Cron
 
-## Getting-started
+`src/cronJobs.js` (node-cron): 6º dia útil 08:00 calcula descontos de contratos ativos; diário 07:00 alerta documentos regulatórios vencendo; dias 1 a 5 úteis 09:00 alerta pendências via Socket.io.
 
-- [How do I set up and run this project?](./getting-started.md)
+## Regras detalhadas (valem para qualquer agente)
 
-## Architecture
+| Arquivo | Quando vale | Conteúdo |
+|---|---|---|
+| `.claude/rules/code-style.md` | sempre | convenções de código, resposta HTTP, gotchas de React |
+| `.claude/rules/testing.md` | sempre | mocha/chai/sinon, rodar um teste, checks |
+| `.claude/rules/security.md` | sempre; ler antes de mexer em rotas | RBAC `checkPermission`, escopo por OSS, LGPD |
+| `.claude/rules/api.md` | ao tocar em `src/route`, `controllers`, `service`, `dao`, `validator` | camadas, mapa de rotas, regra de cumprimento |
+| `.claude/rules/vault.md` | ao tocar em `prestacao-vault/`, `2025/`, `2026/`, `src/db/carrega*.js`, `src/incorporacao/` | layout do vault, unidades, tipos, escalas, proibições |
+| `.claude/rules/extracao.md` | ao tocar em `src/extracao/` ou `prestacao-vault/extracoes/` | extração assistida por LLM, rastreabilidade, LGPD |
 
-- [How is the codebase organized?](./project-structure.md)
+Documentação longa, lida sob demanda: `docs/PRD_v2.md`, `docs/ARQUITETURA_v2.md`, `docs/banco_v2.md`, `docs/erd_v2.md`, `docs/avaliacao-cumprimento-e-relatorios.md`, `docs/Manual-Operacao-Dominio-Contratual.md`, `docs/ponte-producao.md`, `docs/api-claude-chat.md` (MCP do chat) e `docs/conhecimento/` (esquema da wiki da CAF).
 
-## Features
+## Dados sensíveis
 
-- [How does authentication work?](./authentication.md)
-- [How is data stored and accessed?](./database.md)
-- [What API endpoints are available?](./api-endpoints.md)
+A prestação de contas das OSS nunca é versionada: `/2025/`, `/2026/`, `/prestacao-vault/`, `/claude-bridge/` e as planilhas `.xlsx` da raiz estão no `.gitignore`. Não copie conteúdo desses lugares para `docs/`, `specs/`, código, mensagens de commit ou PR. `.env` e `frontend/.env.development` não são lidos nem copiados.
 
-## Operations
+## Incorporação de documentos
 
-- [How does caching work?](./caching.md)
-- [How are errors handled?](./error-handling.md)
-- [How do I deploy this project?](./deployment.md)
+Toda ação que incorpora ou altera dados da prestação (conversão de PDF, carga de escala ou financeiro, importação de extração, reclassificação, correção manual) termina com a rotina pós-incorporação e a atualização das memórias:
 
-## Testing
+```bash
+npm run pos-incorporacao -- --unidade=<hm|unacon|upa_cillos|upa_dona_rosa|pa_zanaga> --competencia=<AAAA-MM> --gatilho=manual --comando="<o que foi feito>"
+```
 
-- [How do I run and write tests?](./testing.md)
+No Claude Code um hook faz isso sozinho para os comandos reconhecidos; outros agentes rodam à mão. O roteiro completo, inclusive a etapa de memória, está em `.claude/skills/incorporacao/SKILL.md`. Registro em `logs/incorporacao.jsonl`; pendências de memória em `logs/memoria-pendente.jsonl`.
 
+## MCP do chat
+
+O chat do Claude Project "Relatório OSS" lê banco, prestações, vault e acervo pelo MCP `oss-relatorios` (`src/claude/`, somente leitura, usuários `claude_ro` e `claude_sql`). Detalhes em `docs/api-claude-chat.md`.
