@@ -24,4 +24,13 @@ describe('Modelos Relacionais da UNACON', () => {
     expect(Procedimento.associations.conciliacoes).to.exist;
     expect(Conciliacao.associations.procedimento).to.exist;
   });
+
+  it('deve ter os campos necessarios definidos em UnaconPaciente para homonimos e busca', () => {
+    const Paciente = db.unacon_paciente;
+    expect(Paciente.rawAttributes.nome).to.exist;
+    expect(Paciente.rawAttributes.nome_normalizado).to.exist;
+    expect(Paciente.rawAttributes.data_nascimento).to.exist;
+    expect(Paciente.rawAttributes.cpf).to.exist;
+    expect(Paciente.rawAttributes.prontuario).to.exist;
+  });
 });

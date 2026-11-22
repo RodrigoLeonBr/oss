@@ -53,7 +53,7 @@ module.exports = {
       },
     });
 
-    await queryInterface.addIndex('tb_unacon_pacientes', ['nome_normalizado'], { name: 'idx_unacon_pac_norm' });
+    await queryInterface.addIndex('tb_unacon_pacientes', ['nome_normalizado', 'data_nascimento'], { name: 'idx_unacon_pac_norm' });
     await queryInterface.addIndex('tb_unacon_pacientes', ['cpf'], { name: 'idx_unacon_pac_cpf' });
     await queryInterface.addIndex('tb_unacon_pacientes', ['prontuario'], { name: 'idx_unacon_pac_pront' });
 
@@ -154,7 +154,7 @@ module.exports = {
       },
     });
 
-    await queryInterface.addIndex('tb_unacon_procedimentos', ['competencia', 'tipo'], { name: 'idx_unacon_proc_comp_tipo' });
+    await queryInterface.addIndex('tb_unacon_procedimentos', ['competencia', 'tipo'], { name: 'idx_unacon_proc_comp' });
     await queryInterface.addIndex('tb_unacon_procedimentos', ['paciente_id'], { name: 'idx_unacon_proc_pac' });
     await queryInterface.addIndex('tb_unacon_procedimentos', ['codigo_sigtap'], { name: 'idx_unacon_proc_sigtap' });
 
