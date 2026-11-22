@@ -23,7 +23,7 @@ Se faltar algum, pergunte antes de executar qualquer comando. Não deduza a unid
 |---|---|---|---|
 | 1 | Conferir origem | Listar os PDFs da competência em `2026/<mes>/<unidade>/` (ou `2025/<unidade>/<mes>/`) e comparar com `listar_prestacoes` do MCP | manual |
 | 2 | Converter | `py -3.13 convert_prestacao.py --ano <a> --mes <m>` em `prestacao-vault/` (PlanejaDocs em `localhost:9000`); anotar erros do `convert.log` | hook registra |
-| 3 | Catalogar e reclassificar | Até a F1: contar `.md` x PDF por tipo e anotar arquivos em `outros` | F1 |
+| 3 | Catalogar e reclassificar | `npm run reclassificar -- --unidade=<u>` (simulação; `--aplicar` move) e `npm run catalogo:atualizar -- --unidade=<u> --ano=<a> --banco`; conferir `prestacao-vault/ESTADO.md` | F1 (a rotina simula, cataloga e sincroniza) |
 | 4 | Validar | Escalas: conferir competência, período, duplicidade e setor de cada `.escala.tsv` antes da carga. Extrações: conferir trecho e página | F2 (escalas), F3 a F5 |
 | 5 | Extrair | Skill `extrair-prestacao` por tipo, saída em `prestacao-vault/extracoes/` | F3 a F5 |
 | 6 | Carregar e recalcular | `node src/db/carregaEscalas.js <dir>`, carregadores financeiros, importador de extrações | hook registra |
@@ -36,7 +36,7 @@ Se faltar algum, pergunte antes de executar qualquer comando. Não deduza a unid
 Depois de qualquer incorporação ou correção, antes de dar a tarefa por encerrada:
 
 1. `npm run pos-incorporacao -- --pendentes` para ver o que está aberto.
-2. `prestacao-vault/ESTADO.md`: atualizar a contagem de PDFs, `.md`, erros e arquivos em `outros` da unidade e competência. Até a F1 a contagem é feita no disco; depois o arquivo é gerado do catálogo.
+2. `prestacao-vault/ESTADO.md`: é gerado pela rotina (etapa catalogar). Confira se a unidade e a competência mostram o que se espera (PDFs sem `.md`, erros, arquivos em `outros`) e registre no relatório o que destoar.
 3. Se existir `prestacao-vault/conhecimento/` (F6): conferir a entrada que a rotina acrescentou ao `log.md` e atualizar a nota da unidade quando mudou algo qualitativo (nova ressalva, justificativa relevante, comissão sem ata).
 4. Mudou convenção, padrão de nome, unidade, tipo ou numeração de contrato: atualizar `prestacao-vault/units.json`, `regras_tipo.json` (F1), `.claude/rules/vault.md` ou `AGENTS.md`, conforme o caso.
 5. Listar no relatório final o que deve ir para a memória do Project no claude.ai (`claude/memoria-projeto-relatorio-oss.md`), para o chat atualizar.

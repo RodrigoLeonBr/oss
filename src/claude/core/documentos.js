@@ -7,6 +7,7 @@ const { promisify } = require('util');
 const execFile = promisify(require('child_process').execFile);
 const { z } = require('zod');
 const { RAIZ, resolverCaminho, acervoDir } = require('./limites');
+const catalogo = require('../../incorporacao/catalogo');
 
 const PY = path.join(__dirname, 'apoio.py');
 const VAULT = path.join(RAIZ, 'prestacao-vault', 'vault');
@@ -443,21 +444,81 @@ const ferramentas = [
     {
         nome: 'buscar_vault',
         descricao:
-            'Busca textual (sem acento e sem caixa) nos .md do prestacao-vault (prestações convertidas). Devolve caminho, linha e trecho.',
+            'Busca textual (sem acento e sem caixa) nos .md do prestacao-vault (prestações convertidas), pelo índice FTS5 do catálogo. Devolve caminho, página, linha, tipo e trecho.',
         schema: {
             texto: z.string().min(2),
             ano: z.coerce.number().int().optional(),
             unidade: z.string().optional(),
             mes: z.union([z.coerce.number().int().min(1).max(12), z.string()]).optional(),
+            tipo: z
+                .string()
+                .optional()
+                .describe(
+                    'recorte, escala, financeiro, comissao, capacitacao, protocolo, relatorio_assistencial...',
+                ),
             limite: z.coerce.number().int().min(1).max(500).default(50),
         },
         async executar(p) {
             const alvo = norm(p.texto);
             const u = unidadeVault(p.unidade);
             const m = mesVault(p.mes);
+            // Índice FTS5 do catálogo (npm run catalogo:atualizar); sem ele, varredura dos .md.
+            let indice = null;
+            try {
+                indice = catalogo.buscar({
+                    texto: p.texto,
+                    ano: p.ano,
+                    unidade: u,
+                    mes: m,
+                    tipo: p.tipo,
+                    limite: p.limite,
+                });
+            } catch (e) {
+                indice = null;
+            }
+            if (indice) {
+                const linhasIdx = indice.linhas.map((l) => {
+                    return {
+                        caminho: `~/mnt/oss/prestacao-vault/vault/${l.caminho_md}`,
+                        pagina: l.pagina,
+                        linha: l.linha,
+                        tipo: l.tipo,
+                        trecho: String(l.trecho || '')
+                            .replace(/\s+/g, ' ')
+                            .trim()
+                            .slice(0, 400),
+                    };
+                });
+                return {
+                    titulo: `Busca no vault: "${p.texto}"`,
+                    fonte: 'prestacao-vault/indice/vault.db (índice FTS5 dos .md da prestação)',
+                    dados: linhasIdx,
+                    tabelas: [
+                        {
+                            colunas: [
+                                ['caminho', 'Arquivo'],
+                                ['pagina', 'Pág.', 'num'],
+                                ['linha', 'Linha', 'num'],
+                                ['tipo', 'Tipo'],
+                                ['trecho', 'Trecho'],
+                            ],
+                            linhas: linhasIdx,
+                        },
+                    ],
+                    notas: [
+                        `Índice atualizado em ${
+                            indice.catalogado_em || '?'
+                        }; arquivos convertidos depois disso só aparecem após npm run catalogo:atualizar.`,
+                        'Frase exata por padrão; use AND, OR, NOT ou * para consulta FTS5.',
+                        linhasIdx.length >= p.limite
+                            ? `Parou no limite de ${p.limite} trechos.`
+                            : '',
+                    ].filter(Boolean),
+                };
+            }
             const linhas = [];
             let arquivos = 0;
-            // ponytail: varredura de ~3.700 .md (~200 MB); índice FTS5 se passar de ~3 s
+            // ponytail: contingência sem índice; varredura de ~6.500 .md (~360 MB)
             const visitar = (dir, nivel) => {
                 if (linhas.length >= p.limite || !fs.existsSync(dir)) {
                     return;
@@ -513,6 +574,62 @@ const ferramentas = [
                         linhas.length >= p.limite ? `; parou no limite de ${p.limite} trechos` : ''
                     }.`,
                 ],
+            };
+        },
+    },
+    {
+        nome: 'catalogo_documentos',
+        descricao:
+            'Catálogo dos .md da prestação (prestacao-vault/indice/vault.db): contagem por unidade, mês e tipo e lista de documentos com origem, páginas e se foi digitalizado. Estado completo do acervo em prestacao-vault/ESTADO.md.',
+        schema: {
+            ano: z.coerce.number().int().optional(),
+            unidade: z.string().optional(),
+            mes: z.union([z.coerce.number().int().min(1).max(12), z.string()]).optional(),
+            tipo: z.string().optional(),
+            limite: z.coerce.number().int().min(1).max(500).default(200),
+        },
+        async executar(p) {
+            const r = catalogo.listarDocumentos({
+                ano: p.ano,
+                unidade: unidadeVault(p.unidade),
+                mes: mesVault(p.mes),
+                tipo: p.tipo,
+                limite: p.limite,
+            });
+            if (!r) {
+                return {
+                    titulo: 'Catálogo de documentos',
+                    fonte: 'prestacao-vault/indice/vault.db',
+                    dados: [],
+                    notas: ['Catálogo ainda não gerado: npm run catalogo:atualizar.'],
+                };
+            }
+            return {
+                titulo: 'Catálogo de documentos da prestação',
+                fonte: 'prestacao-vault/indice/vault.db',
+                dados: r.documentos,
+                tabelas: [
+                    {
+                        colunas: [
+                            ['unidade', 'Unidade'],
+                            ['mes', 'Mês'],
+                            ['tipo', 'Tipo'],
+                            ['n', 'Docs', 'num'],
+                        ],
+                        linhas: r.resumo,
+                    },
+                    {
+                        colunas: [
+                            ['caminho_md', 'Arquivo'],
+                            ['tipo', 'Tipo'],
+                            ['competencia', 'Competência'],
+                            ['paginas', 'Págs', 'num'],
+                            ['scanned', 'Digitalizado'],
+                        ],
+                        linhas: r.documentos,
+                    },
+                ],
+                notas: [`Catalogado em ${r.catalogado_em || '?'}.`],
             };
         },
     },

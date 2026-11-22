@@ -47,24 +47,76 @@ function registrarPendenciaMemoria(ctx) {
     return { status: 'ok', detalhe };
 }
 
+const unidadesDe = (ctx) => {
+    return ctx.unidade ? [ctx.unidade] : null;
+};
+const anosDe = (ctx) => {
+    return ctx.competencia ? [Number(String(ctx.competencia).slice(0, 4))] : null;
+};
+
+// F1: reclassificação só em simulação na rotina; mover arquivos é decisão explícita (npm run reclassificar -- --aplicar).
+function simularReclassificacao(ctx) {
+    // eslint-disable-next-line global-require
+    const r = require('./reclassificar').executar({
+        unidades: unidadesDe(ctx),
+        anos: anosDe(ctx) && anosDe(ctx).map(String),
+    });
+    const mover = Object.entries(r.por_situacao)
+        .filter(([k]) => {
+            return k.endsWith('|mover');
+        })
+        .reduce((t, [, n]) => {
+            return t + n;
+        }, 0);
+    return {
+        status: mover ? 'atencao' : 'ok',
+        detalhe: mover
+            ? `${mover} arquivo(s) em outros têm tipo pelas regras; aplicar com npm run reclassificar -- --unidade=${
+                  ctx.unidade || '<u>'
+              } --aplicar antes de nova conversão (plano: ${path.basename(r.plano)})`
+            : 'nada a reclassificar',
+    };
+}
+
+function catalogarEIndexar(ctx) {
+    // eslint-disable-next-line global-require
+    const cat = require('./catalogo');
+    const r = cat.catalogar({ unidades: unidadesDe(ctx), anos: anosDe(ctx), tempoMaxMs: 100000 });
+    const e = cat.gerarEstado();
+    return {
+        status: r.incompleto ? 'atencao' : 'ok',
+        detalhe: `${r.novos_ou_alterados} novos ou alterados, ${r.removidos} removidos, ${
+            r.trechos
+        } trechos indexados, ${e.pdfs_sem_md} PDF(s) sem .md${
+            r.incompleto ? '; parou pelo tempo, rode npm run catalogo:atualizar para completar' : ''
+        }`,
+    };
+}
+
+async function sincronizarBanco() {
+    // eslint-disable-next-line global-require
+    const r = await require('./sincronizarBanco').sincronizar();
+    return { status: 'ok', detalhe: `${r.gravados} documento(s) gravados em tb_documento` };
+}
+
 const ETAPAS = [
-    {
-        id: 'catalogar',
-        fase: 'F1',
-        descricao: 'tb_documento a partir do frontmatter, hash e ativo',
-        executar: null,
-    },
     {
         id: 'reclassificar',
         fase: 'F1',
-        descricao: 'tipo por regras_tipo.json, sem reconverter',
-        executar: null,
+        descricao: 'simula o tipo por regras_tipo.json; aplicar é manual',
+        executar: simularReclassificacao,
     },
     {
-        id: 'indexar',
+        id: 'catalogar',
         fase: 'F1',
-        descricao: 'índice SQLite FTS5 usado pela buscar_vault',
-        executar: null,
+        descricao: 'catálogo e índice FTS5 (prestacao-vault/indice/vault.db) e ESTADO.md',
+        executar: catalogarEIndexar,
+    },
+    {
+        id: 'sincronizar_banco',
+        fase: 'F1',
+        descricao: 'espelha o catálogo em tb_documento (MySQL, só no host)',
+        executar: sincronizarBanco,
     },
     {
         id: 'validar_escalas',

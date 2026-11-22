@@ -82,7 +82,7 @@ function concluir(id, obs) {
     return { ok: true, id, restantes: pendenciasMemoria().length };
 }
 
-function executar(args) {
+async function executar(args) {
     const comando = typeof args.comando === 'string' ? args.comando : null;
     const inferido = comando ? inferirParametros(comando) : {};
     const det = comando ? detectar(comando) : null;
@@ -105,30 +105,40 @@ function executar(args) {
               })
             : ETAPAS;
 
-    const etapas = escolhidas.map((e) => {
+    const etapas = [];
+    // eslint-disable-next-line no-restricted-syntax
+    for (const e of escolhidas) {
         const t0 = Date.now();
         if (!e.executar) {
-            return { id: e.id, fase: e.fase, status: 'nao_implementada', detalhe: e.descricao };
+            etapas.push({
+                id: e.id,
+                fase: e.fase,
+                status: 'nao_implementada',
+                detalhe: e.descricao,
+            });
+            // eslint-disable-next-line no-continue
+            continue;
         }
         try {
-            const r = e.executar(ctx) || {};
-            return {
+            // eslint-disable-next-line no-await-in-loop
+            const r = (await e.executar(ctx)) || {};
+            etapas.push({
                 id: e.id,
                 fase: e.fase,
                 status: r.status || 'ok',
                 detalhe: r.detalhe || null,
                 ms: Date.now() - t0,
-            };
+            });
         } catch (err) {
-            return {
+            etapas.push({
                 id: e.id,
                 fase: e.fase,
                 status: 'erro',
-                detalhe: err.message,
+                detalhe: String(err.message || err).slice(0, 300),
                 ms: Date.now() - t0,
-            };
+            });
         }
-    });
+    }
 
     const registro = { ...ctx, etapas };
     fs.mkdirSync(LOGS, { recursive: true });
@@ -138,18 +148,24 @@ function executar(args) {
 
 if (require.main === module) {
     const args = lerArgs(process.argv.slice(2));
-    let saida;
-    if (args.pendentes) {
-        saida = { pendencias_memoria: pendenciasMemoria() };
-    } else if (typeof args.concluir === 'string') {
-        saida = concluir(args.concluir, args.obs);
-    } else {
-        saida = executar(args);
-    }
-    process.stdout.write(`${JSON.stringify(saida, null, 2)}\n`);
-    if (saida && saida.ok === false) {
-        process.exitCode = 1;
-    }
+    (async () => {
+        let saida;
+        if (args.pendentes) {
+            saida = { pendencias_memoria: pendenciasMemoria() };
+        } else if (typeof args.concluir === 'string') {
+            saida = concluir(args.concluir, args.obs);
+        } else {
+            saida = await executar(args);
+        }
+        process.stdout.write(`${JSON.stringify(saida, null, 2)}\n`);
+        if (saida && saida.ok === false) {
+            process.exitCode = 1;
+        }
+        // o pool do Sequelize (sincronizar_banco) não pode segurar o processo
+        setTimeout(() => {
+            return process.exit(process.exitCode || 0);
+        }, 50).unref();
+    })();
 }
 
 module.exports = { executar, concluir, pendenciasMemoria, lerArgs };

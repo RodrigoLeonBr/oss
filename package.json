@@ -29,7 +29,9 @@
     "mcp": "node src/claude/mcp/server.js",
     "ponte": "node src/claude/ponte/vigia.js",
     "snapshots": "node src/claude/ponte/snapshots.js",
-    "pos-incorporacao": "node src/incorporacao/posIncorporacao.js"
+    "pos-incorporacao": "node src/incorporacao/posIncorporacao.js",
+    "catalogo:atualizar": "node src/incorporacao/catalogo.js",
+    "reclassificar": "node src/incorporacao/reclassificar.js"
   },
   "author": "Kazi Naimul Hoque (Aoyan)",
   "license": "MIT",

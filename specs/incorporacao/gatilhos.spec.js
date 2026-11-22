@@ -15,6 +15,8 @@ describe('incorporacao/gatilhos', () => {
             'extracao',
         );
         expect(detectar('npm run incorporar -- --unidade=hm').tipo).to.equal('orquestrador');
+        expect(detectar('npm run reclassificar -- --unidade=pa_zanaga --aplicar').tipo).to.equal('catalogo');
+        expect(detectar('npm run reclassificar -- --unidade=pa_zanaga')).to.equal(null);
     });
 
     it('ignora o que não muda dado e a própria rotina', () => {

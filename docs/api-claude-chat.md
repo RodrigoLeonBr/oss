@@ -55,9 +55,11 @@ Toda ferramenta aceita `formato` (`md`, o padrão, com tabelas prontas, fonte e 
 | Financeiro | `repasse_descontos`, `percentual_recebimento`, `execucao_financeira` |
 | Produção SIA/SIH | `ponte_producao`, `producao_sigtap` |
 | Escalas | `efetivo_escalas`, `cobertura_plantao` (nomes só com `identificar=true`, registrado no log) |
-| Documentos | `listar_prestacoes`, `buscar_vault`, `ler_documento`, `acervo_relatorios`, `planilha_indicadores` |
+| Documentos | `listar_prestacoes`, `catalogo_documentos`, `buscar_vault`, `ler_documento`, `acervo_relatorios`, `planilha_indicadores` |
 | Redação | **`pacote_relatorio`**, `relatorio_anterior`, `checar_numeracao` |
 | Livre | `consulta_sql` (SELECT/WITH/SHOW/DESCRIBE/EXPLAIN, 30 s, usuário `claude_sql`) |
+
+**Catálogo e busca no vault**: `catalogo_documentos` e `buscar_vault` leem `prestacao-vault/indice/vault.db` (SQLite com FTS5, gerado por `npm run catalogo:atualizar`; requer Node 22.13+). A busca é por frase exata, sem acento e sem caixa, com filtros `ano`, `unidade`, `mes` e `tipo`, e devolve página e linha; aceita operadores FTS5 (`AND`, `OR`, `NOT`, `*`). Sem o índice, `buscar_vault` volta à varredura dos `.md`. O estado do acervo (PDFs, `.md`, pendências, erros) está em `prestacao-vault/ESTADO.md`.
 
 **Regra do `definitivo`** (`acervo_relatorios`): dentro de ano + período + contrato + tipo, a versão **mais antiga** é a definitiva. A data vem do nome do arquivo; na falta dele, da `CreationDate` do PDF; na falta dela, da data de modificação. Cópias de mesmo MD5 contam como uma. O tipo (`caf`, `nta`, `planilha`, `resumo`, `contabil`, `outro`) sai do texto da 1ª página; nos digitalizados, do nome. Para calibrar, edite `TIPO_POR_TEXTO` e `TIPO_POR_NOME` em `src/claude/core/documentos.js`.
 

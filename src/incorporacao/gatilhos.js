@@ -13,7 +13,7 @@ const PADROES = [
         tipo: 'financeiro',
     },
     { re: /extracoes:importar/, tipo: 'extracao' },
-    { re: /reclassificar\.js|catalogar\.js/, tipo: 'catalogo' },
+    { re: /reclassificar(\.js)?\b.*--aplicar/, tipo: 'catalogo' },
     { re: /npm run incorporar(\s|$)/, tipo: 'orquestrador' },
 ];
 

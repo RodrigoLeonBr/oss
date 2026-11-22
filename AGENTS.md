@@ -20,6 +20,8 @@ npm test                    # mocha (NÃO Jest; chai + sinon)
 npm run db:migrate          # aplica migrações Sequelize pendentes
 npm run db:seed             # popula dados reais de Americana/SP
 npm run pos-incorporacao    # rotina após qualquer incorporação de dados da prestação (ver abaixo)
+npm run catalogo:atualizar  # catálogo e índice de busca do vault (+ --banco: tb_documento) e ESTADO.md
+npm run reclassificar       # tipo por nome de arquivo (regras_tipo.json); simulação, --aplicar move
 cd frontend && npx tsc --noEmit   # type-check obrigatório (zero erros)
 ```
 

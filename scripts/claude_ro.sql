@@ -38,6 +38,8 @@ GRANT SELECT ON oss.tb_repasse_mensal          TO 'claude_ro'@'%', 'claude_sql'@
 GRANT SELECT ON oss.tb_rubricas                TO 'claude_ro'@'%', 'claude_sql'@'%';
 GRANT SELECT ON oss.tb_unidades                TO 'claude_ro'@'%', 'claude_sql'@'%';
 GRANT SELECT ON oss.vw_meta_vigente            TO 'claude_ro'@'%', 'claude_sql'@'%';
+-- catálogo dos .md da prestação (caminho, tipo, competência; sem conteúdo)
+GRANT SELECT ON oss.tb_documento               TO 'claude_ro'@'%', 'claude_sql'@'%';
 -- setores e arquivos de escala não identificam pessoa
 GRANT SELECT ON oss.tb_escala_setores          TO 'claude_ro'@'%', 'claude_sql'@'%';
 GRANT SELECT ON oss.tb_escala_arquivos         TO 'claude_ro'@'%', 'claude_sql'@'%';
