@@ -44,9 +44,13 @@ GRANT SELECT ON oss.tb_documento               TO 'claude_ro'@'%', 'claude_sql'@
 GRANT SELECT ON oss.tb_escala_setores          TO 'claude_ro'@'%', 'claude_sql'@'%';
 GRANT SELECT ON oss.tb_escala_arquivos         TO 'claude_ro'@'%', 'claude_sql'@'%';
 
--- só claude_ro: dados de profissionais (LGPD, filtrados no núcleo)
+-- só claude_ro: dados de profissionais e pacientes UNACON (LGPD, filtrados no núcleo)
 GRANT SELECT ON oss.tb_escala_plantoes            TO 'claude_ro'@'%';
 GRANT SELECT ON oss.tb_escala_profissionais       TO 'claude_ro'@'%';
 GRANT SELECT ON oss.vw_escala_realizados          TO 'claude_ro'@'%';
+GRANT SELECT ON oss.tb_unacon_pacientes           TO 'claude_ro'@'%';
+GRANT SELECT ON oss.tb_unacon_procedimentos       TO 'claude_ro'@'%';
+GRANT SELECT ON oss.tb_unacon_conciliacao         TO 'claude_ro'@'%';
+GRANT SELECT ON oss.tb_unacon_uploads             TO 'claude_ro'@'%', 'claude_sql'@'%';
 
 FLUSH PRIVILEGES;

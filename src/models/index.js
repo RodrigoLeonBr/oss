@@ -37,6 +37,12 @@ Object.keys(db).forEach((modelName) => {
     }
 });
 
+// Aliases PascalCase para modelos UNACON
+if (db.unacon_paciente) db.UnaconPaciente = db.unacon_paciente;
+if (db.unacon_procedimento) db.UnaconProcedimento = db.unacon_procedimento;
+if (db.unacon_conciliacao) db.UnaconConciliacao = db.unacon_conciliacao;
+if (db.unacon_upload) db.UnaconUpload = db.unacon_upload;
+
 db.sequelize = sequelize;
 db.Sequelize = Sequelize;
 
