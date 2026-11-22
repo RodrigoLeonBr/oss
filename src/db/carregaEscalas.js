@@ -7,10 +7,10 @@ const path = require('path');
 const { randomUUID } = require('crypto');
 const db = require('../models');
 const {
-  normalizaNome, nomeCanonico, assinaturaNome, nomeParecido, chaveProfissional, CATEGORIA_POR_CONSELHO,
+  normalizaNome, nomeCanonico, assinaturaNome, nomeParecido, chaveProfissional, CATEGORIA_POR_CONSELHO, sobreposicoes,
 } = require('../helper/escalaNormaliza');
 
-const SIGLA = { hm: 'HMA', upa_cillos: 'UPA-CIL', pa_zanaga: 'UPA-ZAN', unacon: 'UNACON' };
+const SIGLA = { hm: 'HMA', upa_cillos: 'UPA-CIL', pa_zanaga: 'UPA-ZAN', unacon: 'UNACON', upa_dona_rosa: 'UPA-DR' };
 const AREA_POR_CONSELHO = { CRM: 'medica', CRO: 'medica', COREN: 'enfermagem' };
 
 const q = (sql, replacements, transaction) => db.sequelize.query(sql, { replacements, transaction, logging: false });
@@ -155,6 +155,22 @@ async function main() {
   const ids = await carregarProfissionais(arquivos, resolver);
   const setores = new Map();
   for (const arq of arquivos) await carregarArquivo(arq, unidades, ids, setores, resolver);
+  // UPA-DR: ciclo 16→15 repetido no PDF do mês seguinte, às vezes revisado → vale o mais recente (por pessoa).
+  // ponytail: só UPA-DR; HM/Cillos/Zanaga seguem no dedup exato abaixo — estender se aparecer versão revisada lá.
+  const [arqsDr] = await q(`SELECT a.arquivo_id, a.unidade_id, a.assunto, a.competencia,
+      DATE_FORMAT(a.periodo_inicio, '%Y-%m-%d') periodo_inicio, DATE_FORMAT(a.periodo_fim, '%Y-%m-%d') periodo_fim
+    FROM tb_escala_arquivos a WHERE a.unidade_id = ? AND a.periodo_inicio IS NOT NULL`, [unidades['UPA-DR']]);
+  for (const s of sobreposicoes(arqsDr)) {
+    // por pessoa (decisão do usuário 2026-11-22): quem aparece no novo dentro do período é todo substituído
+    // (célula em branco não vira linha, então não dá para ir dia a dia); quem sumiu da reemissão mantém o antigo.
+    // Dia sem nenhuma linha no novo (scan cortado) também mantém o antigo.
+    await q(`DELETE p FROM tb_escala_plantoes p
+             WHERE p.arquivo_id = ? AND p.data BETWEEN ? AND ?
+               AND EXISTS (SELECT 1 FROM tb_escala_plantoes n WHERE n.arquivo_id = ? AND n.data BETWEEN ? AND ?
+                           AND n.profissional_id <=> p.profissional_id)
+               AND EXISTS (SELECT 1 FROM tb_escala_plantoes d WHERE d.arquivo_id = ? AND d.data = p.data)`,
+    [s.arquivo_id, s.inicio, s.fim, s.novo_id, s.inicio, s.fim, s.novo_id]);
+  }
   // escalas de ciclo 21→20 se sobrepõem entre meses: mantém um plantão por profissional+horário+unidade
   // (tb_escala_arquivos.qtd_plantoes segue contando o que veio no arquivo, antes da deduplicação)
   await q(`DELETE p2 FROM tb_escala_plantoes p1 JOIN tb_escala_plantoes p2

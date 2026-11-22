@@ -1,6 +1,7 @@
 const MODULE_DEFAULT_PATHS: [string, string][] = [
   ['dashboard', '/dashboard'],
   ['relatorios', '/relatorios'],
+  ['escalas', '/escalas'],
   ['perfil_oss', '/perfil-oss'],
   ['entrada_mensal', '/entrada-mensal'],
   ['aprovacao', '/aprovacao'],

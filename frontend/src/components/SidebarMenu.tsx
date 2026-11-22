@@ -5,7 +5,7 @@ import {
   Building2, Building, FileText, Hospital, Target, BarChart3,
   ChevronDown, X, Heart, Users, Shield, Settings,
   GitCompareArrows, Layers, Percent,
-  Wallet,
+  Wallet, CalendarDays,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -42,6 +42,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/aprovacao',    label: 'Aprovação',      icon: <ShieldCheck size={20} />,    modulo: 'aprovacao' },
   { to: '/recebimento',  label: 'Recebimento',    icon: <Percent size={20} />,        modulo: 'entrada_mensal' },
   { to: '/financeiro',   label: 'Financeiro',     icon: <Wallet size={20} />,         modulo: 'financeiro' },
+  { to: '/escalas',      label: 'Escalas',        icon: <CalendarDays size={20} />,   modulo: 'escalas' },
   { to: '/relatorios',   label: 'Relatórios CMS',   icon: <FileBarChart2 size={20} />,     modulo: 'relatorios' },
   { to: '/ponte-producao', label: 'Ponte de Produção', icon: <GitCompareArrows size={20} />, modulo: 'relatorios' },
   { to: '/mapa-producao',  label: 'Mapa de Produção',  icon: <Layers size={20} />,           modulo: 'relatorios' },

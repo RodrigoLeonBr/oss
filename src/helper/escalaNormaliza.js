@@ -83,7 +83,33 @@ function chaveProfissional({ nome, conselho, registro, uf }) {
   return { conselho: 'SEM_REGISTRO', registro_numero: normalizaNome(nome).slice(0, 120), registro_uf: '' };
 }
 
+// Mesmo tipo de escala com nome de arquivo diferente entre meses ("técnicos de enfermagem", "raio-x", ...)
+function familiaAssunto(assunto) {
+  const n = normalizaNome(assunto || '');
+  if (n.includes('RECEPC')) return 'RECEPCAO';
+  if (n.includes('TECNIC') && n.includes('ENFERM')) return 'TECNICO DE ENFERMAGEM';
+  if (n.includes('RADIOLOG') || n.includes('RAIO')) return 'RADIOLOGIA';
+  if (n.includes('LIMPEZA')) return 'APOIO';
+  return n.replace(/S$/, '');
+}
+
+// Ciclo repetido em PDFs de meses seguintes: vale a versão do mês mais recente (decisão do usuário 2026-11-20).
+// Recebe [{ arquivo_id, unidade_id, assunto, competencia, periodo_inicio, periodo_fim }] e devolve, para cada arquivo
+// mais antigo, o intervalo coberto por um mais novo da mesma família: [{ arquivo_id, novo_id, inicio, fim }].
+function sobreposicoes(arquivos) {
+  const out = [];
+  arquivos.forEach((velho) => arquivos.forEach((novo) => {
+    if (novo.unidade_id !== velho.unidade_id || novo.competencia <= velho.competencia) return;
+    if (familiaAssunto(novo.assunto) !== familiaAssunto(velho.assunto)) return;
+    const inicio = novo.periodo_inicio > velho.periodo_inicio ? novo.periodo_inicio : velho.periodo_inicio;
+    const fim = novo.periodo_fim < velho.periodo_fim ? novo.periodo_fim : velho.periodo_fim;
+    if (inicio <= fim) out.push({ arquivo_id: velho.arquivo_id, novo_id: novo.arquivo_id, inicio, fim });
+  }));
+  return out;
+}
+
 module.exports = {
+  familiaAssunto, sobreposicoes,
   normalizaNome, nomeCanonico, assinaturaNome, nomeParecido, chaveProfissional, CATEGORIA_POR_CONSELHO,
 };
 
@@ -107,6 +133,24 @@ if (require.main === module) {
   eq(chaveProfissional({ conselho: 'CRM', registro: '275.195', uf: 'sp' }), { conselho: 'CRM', registro_numero: '275195', registro_uf: 'SP' });
   eq(chaveProfissional({ nome: 'João Silva', conselho: null, registro: '' }).conselho, 'SEM_REGISTRO');
   eq(chaveProfissional({ nome: 'João Silva' }).registro_numero, 'JOAO SILVA');
+
+  eq(familiaAssunto('técnicos de enfermagem'), familiaAssunto('técnico de enfermagem'));
+  eq(familiaAssunto('setor administrativo-recepção'), familiaAssunto('recepção'));
+  eq(familiaAssunto('raio-x'), familiaAssunto('radiologistas'));
+  const arq = (id, assunto, competencia, periodo_inicio, periodo_fim, unidade_id = 'u') => ({
+    arquivo_id: id, unidade_id, assunto, competencia, periodo_inicio, periodo_fim,
+  });
+  eq(sobreposicoes([
+    arq('mar', 'farmacêutico', '2026-03', '2026-03-16', '2026-04-15'),
+    arq('abr', 'farmacêutico', '2026-04', '2026-03-16', '2026-05-15'),
+    arq('jan', 'farmacêutico', '2026-01', '2025-12-16', '2026-02-15'),
+    arq('fev', 'farmacêutico', '2026-02', '2026-01-16', '2026-03-15'),
+    arq('enf', 'enfermeiros', '2026-04', '2026-03-16', '2026-05-15'),
+    arq('out', 'farmacêutico', '2026-04', '2026-03-16', '2026-05-15', 'v'),
+  ]), [
+    { arquivo_id: 'mar', novo_id: 'abr', inicio: '2026-03-16', fim: '2026-04-15' },
+    { arquivo_id: 'jan', novo_id: 'fev', inicio: '2026-01-16', fim: '2026-02-15' },
+  ]);
 
   console.log('escalaNormaliza: OK');
 }
