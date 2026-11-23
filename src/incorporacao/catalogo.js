@@ -58,6 +58,24 @@ function moduloSqlite() {
     return sqlite;
 }
 
+// O node:sqlite do Node 22.13 (Windows) não traz FTS5; versões mais novas trazem. Sem FTS5 o catálogo
+// funciona (documentos, pdfs, ESTADO.md) e a busca volta à varredura; o índice é completado quando o Node tiver FTS5.
+let fts5 = null;
+function temFts5() {
+    if (fts5 === null) {
+        try {
+            const m = moduloSqlite();
+            const t = new m.DatabaseSync(':memory:');
+            t.exec('CREATE VIRTUAL TABLE t USING fts5(x)');
+            t.close();
+            fts5 = true;
+        } catch (e) {
+            fts5 = false;
+        }
+    }
+    return fts5;
+}
+
 function abrir({ somenteLeitura = false } = {}) {
     const m = moduloSqlite();
     if (!m) {
@@ -80,11 +98,17 @@ function abrir({ somenteLeitura = false } = {}) {
             CREATE TABLE IF NOT EXISTS pdfs (
                 origem TEXT PRIMARY KEY, ano INTEGER, unidade TEXT, mes TEXT, bytes INTEGER, mtime INTEGER,
                 ativo INTEGER NOT NULL DEFAULT 1, visto_em TEXT);
-            CREATE VIRTUAL TABLE IF NOT EXISTS trechos USING fts5(
-                texto, caminho_md UNINDEXED, ano UNINDEXED, unidade UNINDEXED, mes UNINDEXED, tipo UNINDEXED,
-                pagina UNINDEXED, secao UNINDEXED, linha UNINDEXED, tokenize = 'unicode61 remove_diacritics 2');
             CREATE TABLE IF NOT EXISTS meta (chave TEXT PRIMARY KEY, valor TEXT);
         `);
+        if (temFts5()) {
+            db.exec(`CREATE VIRTUAL TABLE IF NOT EXISTS trechos USING fts5(
+                texto, caminho_md UNINDEXED, ano UNINDEXED, unidade UNINDEXED, mes UNINDEXED, tipo UNINDEXED,
+                pagina UNINDEXED, secao UNINDEXED, linha UNINDEXED, tokenize = 'unicode61 remove_diacritics 2')`);
+        }
+        const cols = db.prepare('PRAGMA table_info(documentos)').all().map((c) => c.name);
+        if (!cols.includes('indexado_fts')) {
+            db.exec('ALTER TABLE documentos ADD COLUMN indexado_fts INTEGER NOT NULL DEFAULT 1');
+        }
     }
     return db;
 }
@@ -290,7 +314,8 @@ function catalogar({ anos = null, unidades = null, pdfs = true, tempoMaxMs = 0 }
     const db = abrir();
     const t0 = Date.now();
     const agora = new Date().toISOString();
-    const sel = db.prepare('SELECT bytes, mtime, ativo FROM documentos WHERE caminho_md = ?');
+    const sel = db.prepare('SELECT bytes, mtime, ativo, indexado_fts FROM documentos WHERE caminho_md = ?');
+    const comFts = temFts5();
     const up =
         db.prepare(`INSERT INTO documentos (caminho_md, origem, ano, unidade, mes, competencia, tipo, subpath, assunto,
         paginas, scanned, ocr, convertido_em, bytes, mtime, hash, ativo, catalogado_em) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?)
@@ -299,10 +324,13 @@ function catalogar({ anos = null, unidades = null, pdfs = true, tempoMaxMs = 0 }
         paginas=excluded.paginas, scanned=excluded.scanned, ocr=excluded.ocr, convertido_em=excluded.convertido_em,
         bytes=excluded.bytes, mtime=excluded.mtime, hash=excluded.hash, ativo=1, catalogado_em=excluded.catalogado_em`);
     const toca = db.prepare('UPDATE documentos SET catalogado_em = ? WHERE caminho_md = ?');
-    const apagaTrechos = db.prepare('DELETE FROM trechos WHERE caminho_md = ?');
-    const insTrecho = db.prepare(
+    const apagaTrechos = comFts ? db.prepare('DELETE FROM trechos WHERE caminho_md = ?') : null;
+    const insTrecho = comFts
+        ? db.prepare(
         'INSERT INTO trechos (texto, caminho_md, ano, unidade, mes, tipo, pagina, secao, linha) VALUES (?,?,?,?,?,?,?,?,?)',
-    );
+    )
+        : null;
+    const marcaIndexado = db.prepare('UPDATE documentos SET indexado_fts = ? WHERE caminho_md = ?');
     const r = {
         lidos: 0,
         inalterados: 0,
@@ -311,6 +339,7 @@ function catalogar({ anos = null, unidades = null, pdfs = true, tempoMaxMs = 0 }
         trechos: 0,
         pdfs: 0,
         incompleto: false,
+        indice_busca: temFts5() ? 'fts5' : 'indisponivel: Node sem FTS5; busca por varredura até atualizar o Node',
     };
     const versaoGravada = (
         db.prepare("SELECT valor FROM meta WHERE chave = 'versao_indice'").get() || {}
@@ -356,7 +385,8 @@ function catalogar({ anos = null, unidades = null, pdfs = true, tempoMaxMs = 0 }
                     atual &&
                     atual.ativo === 1 &&
                     atual.bytes === st.size &&
-                    atual.mtime === Math.round(st.mtimeMs)
+                    atual.mtime === Math.round(st.mtimeMs) &&
+                    (atual.indexado_fts === 1 || !comFts)
                 ) {
                     toca.run(agora, caminho);
                     r.inalterados += 1;
@@ -386,9 +416,10 @@ function catalogar({ anos = null, unidades = null, pdfs = true, tempoMaxMs = 0 }
                     hash,
                     agora,
                 );
-                apagaTrechos.run(caminho);
-                const corpo = texto.split('\n').slice(corpoInicio).join('\n');
-                trechosDe(corpo, corpoInicio + 1).forEach((t) => {
+                if (comFts) {
+                    apagaTrechos.run(caminho);
+                    const corpo = texto.split('\n').slice(corpoInicio).join('\n');
+                    trechosDe(corpo, corpoInicio + 1).forEach((t) => {
                     insTrecho.run(
                         t.texto,
                         caminho,
@@ -401,7 +432,9 @@ function catalogar({ anos = null, unidades = null, pdfs = true, tempoMaxMs = 0 }
                         t.linha,
                     );
                     r.trechos += 1;
-                });
+                    });
+                }
+                marcaIndexado.run(comFts ? 1 : 0, caminho);
                 r.novos_ou_alterados += 1;
                 pendentesNoLote += 1;
             });
@@ -417,7 +450,9 @@ function catalogar({ anos = null, unidades = null, pdfs = true, tempoMaxMs = 0 }
                 .all(ano, unidade, agora);
             sumidos.forEach(({ caminho_md: c }) => {
                 db.prepare('UPDATE documentos SET ativo = 0 WHERE caminho_md = ?').run(c);
-                apagaTrechos.run(c);
+                if (comFts) {
+                    apagaTrechos.run(c);
+                }
                 r.removidos += 1;
             });
             db.exec('COMMIT');
@@ -653,6 +688,9 @@ function gerarEstado() {
 
 // Busca no índice. Frase exata por padrão; com operadores (AND, OR, NOT, *) passa como consulta FTS5.
 function buscar({ texto, ano, unidade, mes, tipo, limite = 50 }) {
+    if (!temFts5()) {
+        return null;
+    }
     const db = abrir({ somenteLeitura: true });
     if (!db) {
         return null;
@@ -740,6 +778,7 @@ function listarDocumentos({ ano, unidade, mes, tipo, limite = 500 }) {
 }
 
 module.exports = {
+    temFts5,
     catalogar,
     gerarEstado,
     buscar,

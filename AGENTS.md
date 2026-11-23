@@ -25,7 +25,7 @@ npm run reclassificar       # tipo por nome de arquivo (regras_tipo.json); simul
 cd frontend && npx tsc --noEmit   # type-check obrigatório (zero erros)
 ```
 
-Um teste: `npx mocha specs/metas/<arquivo>.spec.js --exit`. Docker: `docker:up`, `docker:prod:up` etc. em `package.json`.
+Um teste: `npx mocha specs/metas/<arquivo>.spec.js --exit`. No PowerShell, `npm run x -- --arg` perde o `--` e o npm toma os argumentos para si: chame o script Node direto (`node src/incorporacao/catalogo.js --unidade=...`) ou use `npm.cmd run x -- --arg`. Docker: `docker:up`, `docker:prod:up` etc. em `package.json`.
 
 Em DEV o frontend faz auto-login real contra `tb_usuarios` com `frontend/.env.development` (não commitar). `npm run dev:frontend` usa `wait-on` contra `:4001`: se a API não subir, o web fica esperando.
 
