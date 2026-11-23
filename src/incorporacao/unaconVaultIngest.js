@@ -558,10 +558,12 @@ async function ingerirMesUnacon(ano, mes, targetDb = db) {
 
         // 2. Se não encontrou, tenta cache com data de nascimento nula (criado anteriormente sem DOB)
         if (!paciente) {
-          paciente = cachePacientes.get(`${nomeNorm}|`);
-          if (paciente && !paciente.data_nascimento) {
+          const pSemDob = cachePacientes.get(`${nomeNorm}|`);
+          if (pSemDob && !pSemDob.data_nascimento) {
+            paciente = pSemDob;
             await paciente.update({ data_nascimento: reg.dataNascimento }, { transaction: t });
             cachePacientes.set(`${nomeNorm}|${reg.dataNascimento}`, paciente);
+            cachePacientes.delete(`${nomeNorm}|`);
           }
         }
 
@@ -582,7 +584,7 @@ async function ingerirMesUnacon(ano, mes, targetDb = db) {
           if (paciente) {
             await paciente.update({ data_nascimento: reg.dataNascimento }, { transaction: t });
             cachePacientes.set(`${nomeNorm}|${reg.dataNascimento}`, paciente);
-            cachePacientes.set(`${nomeNorm}|`, paciente);
+            cachePacientes.delete(`${nomeNorm}|`);
           }
         }
 
@@ -603,7 +605,11 @@ async function ingerirMesUnacon(ano, mes, targetDb = db) {
         }
 
         cachePacientes.set(`${nomeNorm}|${reg.dataNascimento}`, paciente);
-        cachePacientes.set(`${nomeNorm}|`, paciente);
+        if (!paciente.data_nascimento) {
+          cachePacientes.set(`${nomeNorm}|`, paciente);
+        } else {
+          cachePacientes.delete(`${nomeNorm}|`);
+        }
       } else {
         // Caso reg.dataNascimento seja nulo
         // 1. Tenta cache sem data de nascimento
@@ -633,8 +639,9 @@ async function ingerirMesUnacon(ano, mes, targetDb = db) {
           totalPacientesCriados++;
         }
 
-        cachePacientes.set(`${nomeNorm}|`, paciente);
-        if (paciente.data_nascimento) {
+        if (!paciente.data_nascimento) {
+          cachePacientes.set(`${nomeNorm}|`, paciente);
+        } else {
           cachePacientes.set(`${nomeNorm}|${paciente.data_nascimento}`, paciente);
         }
       }

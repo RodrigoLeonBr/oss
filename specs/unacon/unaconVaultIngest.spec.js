@@ -191,4 +191,60 @@ CONSULTAS REALIZADAS - JANEIRO  2026<br>QUANT Data Agenda Especialidade Médico 
       }
     }
   });
+
+  it('não deve fundir pacientes homônimos que possuem datas de nascimento distintas', async () => {
+    const Paciente = db.unacon_paciente || db.UnaconPaciente;
+    const Procedimento = db.unacon_procedimento || db.UnaconProcedimento;
+    const nomeHomonimo = 'PACIENTE FICTICIO HOMONIMO';
+    const nomeNorm = normalizarNome(nomeHomonimo);
+
+    const anteriores = await Paciente.findAll({ where: { nome_normalizado: nomeNorm } });
+    for (const p of anteriores) {
+      await Procedimento.destroy({ where: { paciente_id: p.paciente_id } });
+      await Paciente.destroy({ where: { paciente_id: p.paciente_id } });
+    }
+
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'vault-homonimo-test-'));
+    const mesDir = path.join(tempDir, 'vault', '2026', 'unacon', 'janeiro', 'relatorio_assistencial');
+    fs.mkdirSync(mesDir, { recursive: true });
+
+    const conteudoMd = [
+      '|QUANT|Data Agenda|Especialidade|Médico|Paciente|Atendido|Aus|Tipo Agendamento|Município|',
+      `|1|02/01/2026|ONCOLOGIA CLINICA|DR TESTE|${nomeHomonimo}<br>10/01/1960|X||RETORNO|AMERICANA|`,
+      `|2|05/01/2026|ONCOLOGIA CLINICA|DR TESTE|${nomeHomonimo}<br>25/12/1985|X||RETORNO|SUMARÉ|`,
+    ].join('\n');
+
+    fs.writeFileSync(path.join(mesDir, 'ra_unacon_janeiro_2026.md'), conteudoMd, 'utf8');
+
+    const oldVaultPath = process.env.VAULT_PATH;
+    process.env.VAULT_PATH = tempDir;
+
+    try {
+      const resultado = await ingerirMesUnacon(2026, 'janeiro');
+
+      expect(resultado.totalPacientesCriados).to.equal(2);
+      expect(resultado.totalConsultas).to.equal(2);
+
+      const pacientesNoBanco = await Paciente.findAll({
+        where: { nome_normalizado: nomeNorm },
+        order: [['data_nascimento', 'ASC']],
+      });
+      expect(pacientesNoBanco).to.have.lengthOf(2);
+      expect(pacientesNoBanco[0].data_nascimento).to.equal('1960-01-10');
+      expect(pacientesNoBanco[1].data_nascimento).to.equal('1985-12-25');
+      expect(pacientesNoBanco[0].paciente_id).to.not.equal(pacientesNoBanco[1].paciente_id);
+    } finally {
+      if (oldVaultPath) {
+        process.env.VAULT_PATH = oldVaultPath;
+      } else {
+        delete process.env.VAULT_PATH;
+      }
+      fs.rmSync(tempDir, { recursive: true, force: true });
+      const pFinal = await Paciente.findAll({ where: { nome_normalizado: nomeNorm } });
+      for (const p of pFinal) {
+        await Procedimento.destroy({ where: { paciente_id: p.paciente_id } });
+        await Paciente.destroy({ where: { paciente_id: p.paciente_id } });
+      }
+    }
+  });
 });
