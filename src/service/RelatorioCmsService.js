@@ -6,7 +6,7 @@ const { assertContratoNoEscopoOSS, assertUnidadeNoEscopoOSS } = require('../help
 const {
   regraEfetiva, fatorProporcional, fatorNivel, percentualPorEscala,
 } = require('../helper/percentualRecebimento');
-const { faixasEfetivas } = require('../helper/avaliacaoCumprimento');
+const { faixasEfetivas, nivelCumprimento } = require('../helper/avaliacaoCumprimento');
 
 /** Monta os `where` de unidade/contrato conforme escopo + filtro de OSS. */
 function buildEscopoWhere({ escopo, contratoId, unidadeId }, ossIdFiltro) {
@@ -159,8 +159,11 @@ function pontuarUnidade(quantitativos, qualitativos, regraBruta, pesoBloco) {
     niveis: fatorNivel,
     binaria: (pct, meta) => fatorNivel(pct, meta, true),
   }[regra.pontuacao] || fatorProporcional;
+  // repasse_info (HMA): % do repasse por nível (cumprido/parcial/não cumprido), informativo.
+  const repasse = regra.repasse_info;
   const consideradoQuant = (pct, meta) => {
     if (pct == null) return null;
+    if (repasse) return repasse[nivelCumprimento(pct, faixasEfetivas(meta))] ?? null;
     return producao ? producaoConsiderado(pct, regra) : fatorProporcional(pct, meta) * 100;
   };
 
@@ -193,6 +196,7 @@ function pontuarUnidade(quantitativos, qualitativos, regraBruta, pesoBloco) {
       nome: b.nome,
       indicadores: b.linhas.map((l) => l.codigo),
       alcance: r2(alcance),
+      status: alcance == null ? 'aguardando' : nivelCumprimento(alcance, faixasEfetivas(comDado[0]?.meta)),
       consideradoPerc: r2(c),
       peso: b.peso,
       pontos,

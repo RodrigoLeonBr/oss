@@ -41,7 +41,7 @@ const navItems: NavItem[] = [
   },
   {
     to: '/relatorios',
-    label: 'Relatórios CMS',
+    label: 'Relatório CAF',
     icon: <FileBarChart2 size={20} />,
     perfis: ['admin', 'conselheiro_cms', 'gestor_sms'],
   },

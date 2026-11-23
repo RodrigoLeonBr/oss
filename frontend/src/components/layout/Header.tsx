@@ -6,7 +6,7 @@ const pageTitles: Record<string, string> = {
   '/dashboard':    'Dashboard Executivo',
   '/entrada-mensal': 'Entrada Mensal',
   '/aprovacao':    'Aprovação Auditoria',
-  '/relatorios':   'Relatórios CMS',
+  '/relatorios':   'Relatório CAF',
   '/perfil-oss':   'Perfil OSS',
   '/oss':          'Organizações Sociais',
   '/contratos':    'Contratos de Gestão',

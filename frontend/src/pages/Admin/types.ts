@@ -28,7 +28,7 @@ export const MODULO_LABELS: Record<string, string> = {
   dashboard:      'Dashboard',
   entrada_mensal: 'Entrada Mensal',
   aprovacao:      'Aprovação',
-  relatorios:     'Relatórios CMS',
+  relatorios:     'Relatório CAF',
   financeiro:     'Financeiro',
   escalas:        'Escalas',
   perfil_oss:     'Perfil OSS',
