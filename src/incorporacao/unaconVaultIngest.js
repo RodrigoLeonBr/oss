@@ -49,8 +49,8 @@ const NUM_MESES_MAP = {
 function getVaultDir() {
   const primary = process.env.VAULT_PATH || path.resolve(__dirname, '../../prestacao-vault');
   if (fs.existsSync(primary)) return primary;
-  const fallback = process.env.GLOBAL_VAULT_PATH || 'E:\\xampp\\htdocs\\oss\\prestacao-vault';
-  if (fs.existsSync(fallback)) return fallback;
+  const fallback = process.env.GLOBAL_VAULT_PATH;
+  if (fallback && fs.existsSync(fallback)) return fallback;
   return primary;
 }
 
@@ -550,29 +550,50 @@ async function ingerirMesUnacon(ano, mes, targetDb = db) {
       const nomeNorm = normalizarNome(reg.nome);
       if (!nomeNorm) continue;
 
-      const cacheKey = `${nomeNorm}|${reg.dataNascimento || ''}`;
-      let paciente = cachePacientes.get(cacheKey);
+      let paciente = null;
 
-      if (!paciente) {
-        if (reg.dataNascimento) {
+      if (reg.dataNascimento) {
+        // 1. Tenta cache exato com data de nascimento
+        paciente = cachePacientes.get(`${nomeNorm}|${reg.dataNascimento}`);
+
+        // 2. Se não encontrou, tenta cache com data de nascimento nula (criado anteriormente sem DOB)
+        if (!paciente) {
+          paciente = cachePacientes.get(`${nomeNorm}|`);
+          if (paciente && !paciente.data_nascimento) {
+            await paciente.update({ data_nascimento: reg.dataNascimento }, { transaction: t });
+            cachePacientes.set(`${nomeNorm}|${reg.dataNascimento}`, paciente);
+          }
+        }
+
+        // 3. Busca no banco por nome e data de nascimento exatos
+        if (!paciente) {
           paciente = await Paciente.findOne({
             where: { nome_normalizado: nomeNorm, data_nascimento: reg.dataNascimento },
             transaction: t,
           });
-        } else {
-          paciente = await Paciente.findOne({
-            where: { nome_normalizado: nomeNorm },
-            transaction: t,
-          });
         }
 
+        // 4. Fallback no banco: busca paciente existente com data_nascimento NULL
+        if (!paciente) {
+          paciente = await Paciente.findOne({
+            where: { nome_normalizado: nomeNorm, data_nascimento: null },
+            transaction: t,
+          });
+          if (paciente) {
+            await paciente.update({ data_nascimento: reg.dataNascimento }, { transaction: t });
+            cachePacientes.set(`${nomeNorm}|${reg.dataNascimento}`, paciente);
+            cachePacientes.set(`${nomeNorm}|`, paciente);
+          }
+        }
+
+        // 5. Se ainda não existe, cria novo registro
         if (!paciente) {
           paciente = await Paciente.create(
             {
               paciente_id: randomUUID(),
               nome: reg.nome,
               nome_normalizado: nomeNorm,
-              data_nascimento: reg.dataNascimento || null,
+              data_nascimento: reg.dataNascimento,
               idade: reg.idade || null,
               municipio_origem: reg.municipio || null,
             },
@@ -580,7 +601,42 @@ async function ingerirMesUnacon(ano, mes, targetDb = db) {
           );
           totalPacientesCriados++;
         }
-        cachePacientes.set(cacheKey, paciente);
+
+        cachePacientes.set(`${nomeNorm}|${reg.dataNascimento}`, paciente);
+        cachePacientes.set(`${nomeNorm}|`, paciente);
+      } else {
+        // Caso reg.dataNascimento seja nulo
+        // 1. Tenta cache sem data de nascimento
+        paciente = cachePacientes.get(`${nomeNorm}|`);
+
+        // 2. Se não encontrou no cache, busca no banco por nome
+        if (!paciente) {
+          paciente = await Paciente.findOne({
+            where: { nome_normalizado: nomeNorm },
+            transaction: t,
+          });
+        }
+
+        // 3. Se não existe, cria novo registro
+        if (!paciente) {
+          paciente = await Paciente.create(
+            {
+              paciente_id: randomUUID(),
+              nome: reg.nome,
+              nome_normalizado: nomeNorm,
+              data_nascimento: null,
+              idade: reg.idade || null,
+              municipio_origem: reg.municipio || null,
+            },
+            { transaction: t }
+          );
+          totalPacientesCriados++;
+        }
+
+        cachePacientes.set(`${nomeNorm}|`, paciente);
+        if (paciente.data_nascimento) {
+          cachePacientes.set(`${nomeNorm}|${paciente.data_nascimento}`, paciente);
+        }
       }
 
       // Atualiza dados faltantes se disponíveis
