@@ -54,6 +54,7 @@ services:
       - "${PORT:-4001}:4001"
     volumes:
       - app_logs:/usr/src/app/logs
+      - app_backups:/usr/src/app/backups
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:$$PORT/api/health || exit 1"]
       interval: 30s
@@ -64,3 +65,4 @@ services:
 volumes:
   redis_data:
   app_logs:
+  app_backups:

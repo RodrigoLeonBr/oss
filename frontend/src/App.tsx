@@ -22,6 +22,7 @@ const MetasHub           = lazy(() => import('./pages/Metas/MetasHub'))
 const MetasList          = lazy(() => import('./pages/Metas/MetasList'))
 const UsuariosList       = lazy(() => import('./pages/Admin/UsuariosList'))
 const PermissoesMatrix   = lazy(() => import('./pages/Admin/PermissoesMatrix'))
+const BackupPage         = lazy(() => import('./pages/Admin/BackupPage'))
 const PonteProducaoPage  = lazy(() => import('./pages/Producao/PonteProducaoPage'))
 const MapaProducaoPage   = lazy(() => import('./pages/Producao/MapaProducaoPage'))
 const RecebimentoPage    = lazy(() => import('./pages/Recebimento/RecebimentoPage'))
@@ -88,6 +89,7 @@ export default function App() {
         <Route path="/metas/:indicadorId/*"    element={<Guarded modulo="metas"><MetasList /></Guarded>} />
         <Route path="/admin/usuarios"          element={<Guarded modulo="usuarios"><UsuariosList /></Guarded>} />
         <Route path="/admin/permissoes"        element={<Guarded modulo="permissoes"><PermissoesMatrix /></Guarded>} />
+        <Route path="/admin/backup"            element={<Guarded modulo="backup"><BackupPage /></Guarded>} />
 
         <Route path="*" element={<Navigate to={defaultRoute()} replace />} />
       </Routes>

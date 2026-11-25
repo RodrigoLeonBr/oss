@@ -60,3 +60,6 @@ seed-credenciais.local.json
 
 # ponte/log do MCP oss-relatorios
 /claude-bridge/
+
+# Dumps do banco (contêm dados pessoais/LGPD) — nunca versionar
+/backups

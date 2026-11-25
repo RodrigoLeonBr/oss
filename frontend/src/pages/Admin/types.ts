@@ -21,7 +21,7 @@ export const PERFIL_LABELS: Record<Perfil, string> = {
 export const MODULOS_LIST = [
   'dashboard', 'entrada_mensal', 'aprovacao', 'relatorios', 'financeiro', 'escalas',
   'perfil_oss', 'oss', 'contratos', 'unidades',
-  'indicadores', 'metas', 'usuarios', 'permissoes',
+  'indicadores', 'metas', 'usuarios', 'permissoes', 'backup',
 ] as const
 
 export const MODULO_LABELS: Record<string, string> = {
@@ -39,6 +39,7 @@ export const MODULO_LABELS: Record<string, string> = {
   metas:          'Metas Anuais',
   usuarios:       'Usuários',
   permissoes:     'Permissões',
+  backup:         'Backup / Restauração',
 }
 
 export interface UsuarioFormData {

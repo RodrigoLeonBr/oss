@@ -5,7 +5,7 @@ import {
   Building2, Building, FileText, Hospital, Target, BarChart3,
   ChevronDown, X, Heart, Users, Shield, Settings,
   GitCompareArrows, Layers, Percent,
-  Wallet, CalendarDays,
+  Wallet, CalendarDays, DatabaseBackup,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -69,6 +69,7 @@ const MENU_GROUPS: MenuGroup[] = [
     subItems: [
       { to: '/admin/usuarios',   label: 'Usuários',   icon: <Users size={14} />,  modulo: 'usuarios' },
       { to: '/admin/permissoes', label: 'Permissões', icon: <Shield size={14} />, modulo: 'permissoes' },
+      { to: '/admin/backup',     label: 'Backup / Restauração', icon: <DatabaseBackup size={14} />, modulo: 'backup' },
     ],
   },
 ]

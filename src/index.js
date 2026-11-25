@@ -7,6 +7,9 @@ require('./cronJobs');
 const http = require('http');
 // socket initialization
 const server = http.createServer(app);
+// Default do Node (300 s) mataria o upload de restauração de dump grande no meio.
+// Slowloris continua coberto pelo headersTimeout e pelo proxy (nginx).
+server.requestTimeout = 30 * 60 * 1000;
 // eslint-disable-next-line import/order
 const io = require('socket.io')(server, { cors: { origin: '*' } });
 

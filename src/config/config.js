@@ -39,6 +39,10 @@ const envValidation = Joi.object()
         DB_PRODUCAO_USER: Joi.string().default('hospital'),
         DB_PRODUCAO_PASS: Joi.string().allow('').default(''),
         DB_PRODUCAO_NAME: Joi.string().default('producao'),
+        BACKUP_DIR: Joi.string().default('backups'),
+        BACKUP_MAX_MB: Joi.number().default(4096),
+        MYSQL_DUMP_BIN: Joi.string().default('mysqldump'),
+        MYSQL_CLIENT_BIN: Joi.string().default('mysql'),
     })
     .unknown();
 
@@ -75,6 +79,12 @@ module.exports = {
         port: envVar.REDIS_PORT,
         usePassword: envVar.REDIS_USE_PASSWORD,
         password: envVar.REDIS_PASSWORD,
+    },
+    backup: {
+        dir: envVar.BACKUP_DIR,
+        maxMb: envVar.BACKUP_MAX_MB,
+        dumpBin: envVar.MYSQL_DUMP_BIN,
+        clientBin: envVar.MYSQL_CLIENT_BIN,
     },
     producaoDb: {
         host: envVar.DB_PRODUCAO_HOST,
